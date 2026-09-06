@@ -30,6 +30,7 @@ import { resolveSlot, type ResolveCtx, type Resolved } from './resolve'
 import { llmExtract } from './llm'
 import { piExtract } from './piAgent'
 import type { LlmSettings } from './settings'
+import { lookupVerb, phraseNorm } from './lexicon'
 
 // ---------------------------------------------------------------- 类型
 
@@ -369,13 +370,24 @@ export async function interpret(
   const { tools, schemas, ctx, dict = EMPTY_DICT, llm = null, today } = opts
   const available = [...tools.keys()]
 
-  // --- 1. 意图 → 动词
-  let { verb, confidence: verbConfidence } = detectVerb(utterance, available)
+  // --- 0. 个人用语表：动词前置闸门（插入点 A）
+  const verbLex = await lookupVerb(ctx.db, utterance, ctx.userId ?? 'owner')
+  let verbFromLexicon = false
+  let verb: string
+  let verbConfidence: number
+  if (verbLex?.verb && available.includes(verbLex.verb)) {
+    verb = verbLex.verb
+    verbConfidence = 0.95
+    verbFromLexicon = true
+  } else {
+    // --- 1. 意图 → 动词
+    ;({ verb, confidence: verbConfidence } = detectVerb(utterance, available))
+  }
 
   // --- 2. 槽位抽取：模型优先，规则兜底
   const ruleSlots = extractSlotsRules(utterance, dict)
   let rawSlots = ruleSlots
-  let engine: 'rules' | 'llm' | 'pi' = 'rules'
+  let engine: 'rules' | 'llm' | 'pi' = verbFromLexicon ? 'rules' : 'rules'
   let llmTrace: Interpretation['llm']
 
   if (llm && llm.provider === 'openai' && llm.apiKey) {
@@ -390,8 +402,10 @@ export async function interpret(
           dict,
           today: today ?? new Date(),
         })
-        verb = r.verb
-        verbConfidence = r.confidence
+        if (!verbFromLexicon) {
+          verb = r.verb
+          verbConfidence = r.confidence
+        }
         rawSlots = { ...ruleSlots, ...r.slots }
         engine = 'pi'
         llmTrace = { ms: r.ms, raw: r.raw }
@@ -407,8 +421,10 @@ export async function interpret(
           dict,
           today: today ?? new Date(),
         })
-        verb = r.verb
-        verbConfidence = r.confidence
+        if (!verbFromLexicon) {
+          verb = r.verb
+          verbConfidence = r.confidence
+        }
         rawSlots = { ...ruleSlots, ...r.slots }
         engine = 'llm'
         llmTrace = { ms: r.ms, raw: r.raw }
@@ -416,6 +432,22 @@ export async function interpret(
     } catch (e: any) {
       llmTrace = { ms: 0, error: String(e?.message ?? e) }
       console.warn(`⚠️  LLM 抽取失败，回落规则引擎：${e?.message ?? e}`)
+    }
+  }
+
+  // --- 2b. 个人用语：若话术含已记槽位说法且抽取未覆盖，注入 raw
+  {
+    const slotRows = await ctx.db.personalLexeme.findMany({
+      where: { userId: ctx.userId ?? 'owner', status: 'active', kind: 'slot' },
+      orderBy: [{ hits: 'desc' }],
+    })
+    const uNorm = phraseNorm(utterance)
+    for (const row of slotRows) {
+      if (!row.slot || !row.phraseNorm) continue
+      if (rawSlots[row.slot] !== undefined) continue
+      if (uNorm.includes(row.phraseNorm) || utterance.includes(row.phrase)) {
+        rawSlots[row.slot] = row.phrase
+      }
     }
   }
 
@@ -441,6 +473,7 @@ export async function interpret(
       const r: Resolved = await resolveSlot(raw, param['x-resolution'], ctx, {
         enum: param.enum,
         field,
+        slot,
       })
       slots.push({
         slot,
@@ -521,6 +554,10 @@ export async function interpret(
   } else if (missingSlots.length) {
     const names = missingSlots.map((s) => s.title).join('、')
     question = `还需要：${names}。一次说全就行，比如「客户张三，A-100，120个」。`
+  }
+  if (verbFromLexicon) {
+    const prefix = verbLex!.note
+    question = question ? `${prefix}。${question}` : `${prefix} → ${schema.title ?? verb}`
   }
 
   return {

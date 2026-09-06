@@ -12,6 +12,9 @@
     "db:seed": "tsx prisma/seed.ts",
     "eval": "tsx scripts/eval-interpret.ts",
     "eval:rules": "tsx scripts/eval-interpret.ts --engine=rules",
+    "eval:lexicon": "tsx scripts/eval-lexicon.ts",
+    "eval:compare": "tsx scripts/eval-compare-models.ts",
+    "trial:10": "tsx scripts/trial-10-utterances.ts",
     "setup": "prisma generate && prisma db push --skip-generate && tsx prisma/seed.ts"
   },
   "dependencies": {

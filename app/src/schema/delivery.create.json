@@ -3,7 +3,7 @@
   "type": "object",
   "title": "创建出货单",
   "x-verb": "delivery.create",
-  "x-description": "从已确认订单生成出货单（草稿）。",
+  "x-description": "从已确认订单生成出货单（草稿）。默认按剩余可出量；可指定部分数量。",
   "x-risk": "write",
   "x-requires-confirm": true,
   "properties": {
@@ -19,6 +19,20 @@
         "resolution": "order_lookup",
         "askIfMissing": true,
         "examples": ["给1002做出货单", "SO-2026-1002出货"]
+      }
+    },
+    "qty": {
+      "type": "number",
+      "title": "本次出货数量",
+      "x-component": "NumberPicker",
+      "x-decorator": "FormItem",
+      "x-index": 15,
+      "x-agent": {
+        "extract": "quantity",
+        "resolution": "number_normalize",
+        "askIfMissing": false,
+        "notes": "单行订单时可填部分出货；不填则出全部剩余",
+        "examples": ["先出50个", "出货20"]
       }
     },
     "warehouseId": {

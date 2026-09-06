@@ -27,9 +27,18 @@ import { loadSettings, saveSettings, publicView, type LlmSettings } from './sett
 import {
   recordPanel,
   listPanels,
+  listSessions,
+  clearSession,
   prepareRevision,
   getChain,
 } from './panels'
+import {
+  listLexemes,
+  upsertLexeme,
+  rejectLexeme,
+  retireLexeme,
+  proposeFromConfirm,
+} from './lexicon'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '../..')
@@ -137,6 +146,88 @@ app.put<{ Body: Partial<LlmSettings> }>('/api/settings', async (req, reply) => {
 
 /** 连通性测试 —— 真发一条最小请求，把服务端原始错误带回来（排查 401 用） */
 app.post('/api/settings/test', async () => ping(runtime.settings))
+
+// ---------------------------------------------------------------- 个人用语表
+
+app.get<{ Querystring: { userId?: string; status?: string } }>('/api/lexicon', async (req) => {
+  const userId = req.query.userId ?? 'owner'
+  const status = req.query.status as 'active' | 'rejected' | 'retired' | undefined
+  return listLexemes(prisma, userId, status)
+})
+
+app.post<{
+  Body: {
+    phrase?: string
+    kind?: 'verb' | 'slot'
+    verb?: string
+    slot?: string
+    targetId?: string
+    targetLabel?: string
+    targetRaw?: string
+    source?: 'explicit' | 'confirmed'
+    userId?: string
+    status?: 'active' | 'rejected' | 'retired'
+  }
+}>('/api/lexicon', async (req, reply) => {
+  const b = req.body ?? {}
+  if (!b.phrase?.trim() || !b.kind) {
+    return reply.code(400).send({ error: 'phrase 与 kind 必填' })
+  }
+  try {
+    const row = await upsertLexeme(prisma, {
+      phrase: b.phrase,
+      kind: b.kind,
+      verb: b.verb,
+      slot: b.slot,
+      targetId: b.targetId,
+      targetLabel: b.targetLabel,
+      targetRaw: b.targetRaw,
+      source: b.source === 'confirmed' ? 'confirmed' : 'explicit',
+      userId: b.userId ?? 'owner',
+      status: b.status === 'rejected' ? 'rejected' : 'active',
+    })
+    return { ok: true, lexeme: row }
+  } catch (e: any) {
+    return reply.code(400).send({ error: String(e?.message ?? e) })
+  }
+})
+
+app.post<{ Params: { id: string } }>('/api/lexicon/:id/reject', async (req, reply) => {
+  try {
+    const row = await rejectLexeme(prisma, req.params.id)
+    return { ok: true, lexeme: row }
+  } catch {
+    return reply.code(404).send({ error: '用语不存在' })
+  }
+})
+
+app.delete<{ Params: { id: string } }>('/api/lexicon/:id', async (req, reply) => {
+  try {
+    const row = await retireLexeme(prisma, req.params.id)
+    return { ok: true, lexeme: row }
+  } catch {
+    return reply.code(404).send({ error: '用语不存在' })
+  }
+})
+
+/** 根据确认结果生成「是否记住」提议（不入库） */
+app.post<{
+  Body: {
+    utterance?: string
+    verb?: string
+    slots?: any[]
+    submittedValues?: Record<string, unknown>
+  }
+}>('/api/lexicon/propose', async (req) => {
+  const b = req.body ?? {}
+  const proposals = await proposeFromConfirm(prisma, {
+    utterance: b.utterance ?? '',
+    verb: b.verb ?? '',
+    slots: b.slots ?? [],
+    submittedValues: b.submittedValues ?? {},
+  })
+  return { proposals }
+})
 
 /** 自省：这台系统能做什么 */
 app.get('/api/verbs', async () =>
@@ -289,7 +380,7 @@ app.post<{
 
   // 落一格：不可变，提交即冻结
   const panel = await recordPanel(prisma, {
-    sessionId: req.body?.sessionId,
+    sessionId: req.body?.sessionId ?? 'default',
     verb: req.params.name,
     title: rawSchema?.title,
     utterance: typeof __utterance === 'string' ? __utterance : null,
@@ -299,12 +390,15 @@ app.post<{
     supersedesId: req.body?.supersedesId ?? null,
   })
 
-  return { ...result, panelId: panel.id, panelSeq: panel.seq }
+  return { ...result, panelId: panel.id, panelSeq: panel.seq, sessionId: panel.sessionId }
 })
 
 // ---------------------------------------------------------------- 画布
 
-/** 取画布上的全部格子 */
+/** 工作页列表（Tab）—— 每个 session 是一条独立工作链 */
+app.get('/api/sessions', async () => listSessions(prisma))
+
+/** 取画布上的全部格子（按当前工作页） */
 app.get<{ Querystring: { sessionId?: string } }>('/api/panels', async (req) => {
   return listPanels(prisma, req.query.sessionId ?? 'default')
 })
@@ -327,13 +421,13 @@ app.get<{ Params: { id: string } }>('/api/panels/:id/chain', async (req, reply) 
 })
 
 /**
- * 清空画布 —— 仅开发期使用。
- * 与「不可变」原则冲突，但 PoC 阶段反复测试需要重置。
- * 正式版应当移除，或改为「开一个新画布」而不是删记录。
+ * 清空当前工作页的格子。
+ * 不传 sessionId 时只清 default；不会误删其它 Tab。
  */
-app.delete('/api/panels', async () => {
-  const n = await prisma.panel.deleteMany({})
-  return { deleted: n.count }
+app.delete<{ Querystring: { sessionId?: string } }>('/api/panels', async (req) => {
+  const sessionId = req.query.sessionId ?? 'default'
+  const deleted = await clearSession(prisma, sessionId)
+  return { deleted, sessionId }
 })
 
 // ---------------------------------------------------------------- 静态资源（生产）

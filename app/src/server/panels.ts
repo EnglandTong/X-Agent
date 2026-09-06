@@ -159,6 +159,71 @@ export async function listPanels(db: PrismaClient, sessionId = 'default') {
   return out
 }
 
+/** 列出所有工作页（session），供 Tab 栏使用。旧工作不删，收成 tab。 */
+export async function listSessions(db: PrismaClient) {
+  const rows = await db.panel.findMany({
+    orderBy: { createdAt: 'asc' },
+    select: {
+      sessionId: true,
+      utterance: true,
+      title: true,
+      verb: true,
+      result: true,
+      correlationId: true,
+      createdAt: true,
+      seq: true,
+    },
+  })
+
+  type Acc = {
+    sessionId: string
+    title: string
+    panelCount: number
+    updatedAt: Date
+    correlationId: string | null
+  }
+  const map = new Map<string, Acc>()
+
+  for (const r of rows) {
+    const sid = r.sessionId || 'default'
+    const data = r.result ? JSON.parse(r.result) : null
+    const orderNo = data?.data?.no ? String(data.data.no) : null
+    const customer = data?.data?.customer ? String(data.data.customer) : null
+    const label =
+      orderNo ??
+      customer ??
+      (r.utterance ? r.utterance.slice(0, 16) : null) ??
+      r.title ??
+      r.verb
+
+    const prev = map.get(sid)
+    if (!prev) {
+      map.set(sid, {
+        sessionId: sid,
+        title: label,
+        panelCount: 1,
+        updatedAt: r.createdAt,
+        correlationId: r.correlationId,
+      })
+    } else {
+      prev.panelCount += 1
+      prev.updatedAt = r.createdAt
+      // 标题跟最新一格走（更能代表当前工作）
+      prev.title = label
+      if (r.correlationId) prev.correlationId = r.correlationId
+    }
+  }
+
+  return [...map.values()].sort(
+    (a, b) => b.updatedAt.getTime() - a.updatedAt.getTime()
+  )
+}
+
+export async function clearSession(db: PrismaClient, sessionId: string) {
+  const n = await db.panel.deleteMany({ where: { sessionId } })
+  return n.count
+}
+
 export function deserialize(row: any) {
   return {
     id: row.id,

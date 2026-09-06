@@ -23,6 +23,11 @@
 | 13 | 设置面板读写 | `GET/PUT /api/settings` | Key 掩码回传，写入 `.env.local` 立即生效 |
 | 14 | 连通性诊断 | 假 Key 测 `POST /api/settings/test` | 返回 `HTTP 401` + 服务端原始错误 |
 | 15 | **失败静默回落** | 假 Key 下 `POST /api/interpret` | `engine:"rules"`，业务正常，附 `llm.error` |
+| 16 | **个人用语表** | `npm run eval:lexicon` | 开张单→order.create；老王/圆珠笔→张三/A-100 |
+| 17 | **出货剩余量** | `npx tsx scripts/smoke-delivery-remaining.ts` | 部分出货 PARTIALLY_SHIPPED；超量硬拦；最终 SHIPPED |
+| 18 | **小模型对比脚手架** | `npm run eval:compare`（可 `SKIP_CLOUD=1`） | 写出 `eval/results/compare-models.md` |
+| 19 | **API 10 条真链路** | `BASE_URL=… npm run trial:10` | 开单→用语→确认→部分出货→超量拦→查库存/信用 |
+| 20 | **云端对比（本轮）** | `npm run eval:compare` | rules 96%/98.3% · cloud 100%/100% |
 
 ---
 
@@ -30,15 +35,22 @@
 
 | 项 | 为什么没验 | 怎么验 |
 |---|---|---|
-| **真实模型准确率** | Owner 尚未在设置面板填 Key | 填 Key 后 `cd app && npm run eval`（`--engine=both`） |
+| **本地小模型准确率** | 未配 Ollama / LOCAL_LLM_* | 见 `eval/COMPARE_MODELS.md` |
+| 画布人手点「记住」手感 | API 已覆盖；UI 需浏览器 | 本机开画布点一次 |
 | 并发 / 多用户 | PoC 单会话 | 压测 |
 | PostgreSQL | 用的 SQLite | 改 provider + url |
 | 长时间运行的内存泄漏 | 未测 | — |
 
-### 规则引擎基线（已跑，2026-09-06）
+### 规则 + 模型基线（已跑，2026-09-06）
 
-见 [`app/eval/BASELINE.md`](../app/eval/BASELINE.md)：50 条样本 · 动词 **96.0%** · 槽位 **98.3%** · OK 46 / C 4。
-语音输入：UI 已接 Web Speech API → 同一条 interpret（需浏览器授权麦克风，未做自动化测）。
+见 [`app/eval/BASELINE.md`](../app/eval/BASELINE.md)：
+
+| | 规则 | 模型（doubao-seed-2.0-lite） |
+|---|---|---|
+| 动词准确率 | 96.0% | **100%** |
+| 槽位命中率 | 98.3% | **100%** |
+
+连通性测试已通过。语音输入：UI 已接 Web Speech API（需浏览器授权麦克风）。
 
 ---
 

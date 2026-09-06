@@ -15,6 +15,7 @@
  */
 
 import type { PrismaClient } from '@prisma/client'
+import { lookupSlot, validateSlotTarget } from './lexicon'
 
 // ---------------------------------------------------------------- 类型
 
@@ -101,6 +102,7 @@ interface MatchCandidate {
  * 模糊匹配实体（客户 / 产品）。
  *
  * 多路打分取最高：名称 / 编码 / 型号 / 别名（型号去横杠等变体）。
+ * **编码精确命中优先**（RFTS SoR：按 code 消解）。
  * 命中多个且分差 < 0.08 时判为歧义，返回 candidates 让人选 —— 绝不自动选中。
  */
 async function fuzzyEntity(
@@ -115,11 +117,34 @@ async function fuzzyEntity(
 
   if (kind === 'customer') {
     const rows = await db.customer.findMany()
+    // 编码精确 / 高置信优先
+    const codeExact = rows.filter((c) => norm(c.code) === q)
+    if (codeExact.length === 1) {
+      const c = codeExact[0]
+      return ok(
+        c.id,
+        `${c.name}（${c.code}）`,
+        0.99,
+        `"${raw}" → 编码精确 ${c.code}`
+      )
+    }
+    if (codeExact.length > 1) {
+      return fail(
+        `"${raw}" 匹配到多个客户编码，请选择`,
+        codeExact.map((c) => ({
+          id: c.id,
+          label: `${c.name}（${c.code}）`,
+          hint: `${c.level} 级客户`,
+        }))
+      ) as Resolved<string>
+    }
+
     for (const c of rows) {
       const sName = similarity(q, c.name)
       const sCode = similarity(q, c.code)
-      const score = Math.max(sName, sCode * 0.95)
-      if (score >= 0.5) {
+      // 编码相似度加权高于名称，减少「张」类短名误绑
+      const score = Math.max(sName * 0.92, sCode)
+      if (score >= 0.55) {
         scored.push({
           id: c.id,
           label: `${c.name}（${c.code}）`,
@@ -130,11 +155,27 @@ async function fuzzyEntity(
     }
   } else {
     const rows = await db.product.findMany()
+    const modelExact = rows.filter((p) => norm(p.model) === q)
+    if (modelExact.length === 1) {
+      const p = modelExact[0]
+      return ok(p.id, `${p.model} ${p.name}`, 0.99, `"${raw}" → 型号精确 ${p.model}`)
+    }
+    if (modelExact.length > 1) {
+      return fail(
+        `"${raw}" 匹配到多个产品型号，请选择`,
+        modelExact.map((p) => ({
+          id: p.id,
+          label: `${p.model} ${p.name}`,
+          hint: `牌价 ¥${p.price}`,
+        }))
+      ) as Resolved<string>
+    }
+
     for (const p of rows) {
       const sModel = similarity(q, p.model)
-      const sName = similarity(q, p.name) * 0.9
+      const sName = similarity(q, p.name) * 0.85
       const score = Math.max(sModel, sName)
-      if (score >= 0.5) {
+      if (score >= 0.55) {
         scored.push({
           id: p.id,
           label: `${p.model} ${p.name}`,
@@ -292,6 +333,7 @@ export function parseDate(input: string, today = new Date()): string | null {
 const STATUS_ALIASES: Record<string, string> = {
   DRAFT: 'DRAFT', 草稿: 'DRAFT', 未确认: 'DRAFT', 待确认: 'DRAFT', 还没确认: 'DRAFT', 新建: 'DRAFT',
   CONFIRMED: 'CONFIRMED', 已确认: 'CONFIRMED', 确认: 'CONFIRMED', 已下单: 'CONFIRMED',
+  PARTIALLY_SHIPPED: 'PARTIALLY_SHIPPED', 部分出货: 'PARTIALLY_SHIPPED', 部分发货: 'PARTIALLY_SHIPPED',
   SHIPPED: 'SHIPPED', 已出货: 'SHIPPED', 已发货: 'SHIPPED', 出货: 'SHIPPED',
   CANCELLED: 'CANCELLED', 已取消: 'CANCELLED', 取消: 'CANCELLED', 作废: 'CANCELLED',
   SUPERSEDED: 'SUPERSEDED', 已变更: 'SUPERSEDED', 被取代: 'SUPERSEDED',
@@ -300,6 +342,7 @@ const STATUS_ALIASES: Record<string, string> = {
 export const STATUS_LABEL: Record<string, string> = {
   DRAFT: '草稿',
   CONFIRMED: '已确认',
+  PARTIALLY_SHIPPED: '部分出货',
   SHIPPED: '已出货',
   CANCELLED: '已取消',
   SUPERSEDED: '已变更',
@@ -311,20 +354,61 @@ export interface ResolveCtx {
   db: PrismaClient
   /** 供相对日期解析使用，便于测试时固定 */
   today?: Date
+  /** 个人用语表用户；默认 owner */
+  userId?: string
 }
 
 /**
  * 按 Schema 声明的 resolution 策略消解单个槽位。
  * 策略名写在 Schema 的 x-agent.resolution 里 —— 字段怎么消解，由 Schema 说了算。
+ * 个人用语表在 fuzzy / enum 之前优先命中。
  */
 export async function resolveSlot(
   raw: unknown,
   resolution: string | undefined,
   ctx: ResolveCtx,
-  meta: { enum?: string[]; field: string } = { field: '' }
+  meta: { enum?: string[]; field: string; slot?: string } = { field: '' }
 ): Promise<Resolved> {
   if (raw === undefined || raw === null || raw === '') {
     return fail('未提供')
+  }
+
+  const userId = ctx.userId ?? 'owner'
+  const slotName = meta.slot ?? meta.field
+
+  // 插入点 B：个人用语优先于系统消解
+  if (
+    resolution === 'fuzzy_customer' ||
+    resolution === 'fuzzy_product' ||
+    resolution === 'enum' ||
+    resolution === 'enum_alias'
+  ) {
+    const lexSlot =
+      resolution === 'fuzzy_customer'
+        ? 'customer'
+        : resolution === 'fuzzy_product'
+          ? 'product'
+          : slotName === 'warehouseId' || slotName === 'warehouse'
+            ? 'warehouse'
+            : slotName
+    const hit = await lookupSlot(ctx.db, String(raw), lexSlot, userId)
+    if (hit && (await validateSlotTarget(ctx.db, hit))) {
+      const target = hit.targetId!
+      if (
+        (resolution === 'enum' || resolution === 'enum_alias') &&
+        meta.enum &&
+        !meta.enum.includes(target)
+      ) {
+        // 用语目标不在枚举内 → 忽略，走系统消解
+      } else {
+        return ok(
+          target,
+          hit.targetLabel ?? target,
+          0.95,
+          `${hit.note} → ${hit.targetLabel ?? target}`
+        )
+      }
+    }
   }
 
   switch (resolution) {

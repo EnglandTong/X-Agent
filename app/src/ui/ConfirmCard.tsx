@@ -1,8 +1,8 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { createForm } from '@formily/core'
 import { FormProvider, FormConsumer } from '@formily/react'
 import { FormLayout } from '@formily/antd-v5'
-import { Card, Tag, Button, Space, Divider, Tooltip } from 'antd'
+import { Card, Tag, Button, Space, Divider, Tooltip, message } from 'antd'
 import { SchemaField } from './formily'
 import type { SlotResult } from '../types'
 
@@ -13,6 +13,7 @@ interface Props {
   verb: string
   risk: 'read' | 'write'
   question?: string
+  utterance?: string
   /** 非空表示这是从 #N 修订而来的新格 */
   revisesSeq?: number
   /** 覆盖默认提交文案（变更单 / 修订） */
@@ -82,11 +83,33 @@ function buildFormSchema(rawSchema: any, slots: SlotResult[]): any {
     if (extra.length) decoratorProps.extra = <span>{extra}</span>
     if (slot?.source === 'missing' && slot.required) {
       decoratorProps.feedbackStatus = 'error'
-      decoratorProps.feedbackText = '必填'
+      decoratorProps.feedbackText = '必填 — 请在下方选择或填写'
+    }
+
+    // 有歧义候选时：强制用下拉，选项就是候选（绝不自动选中）
+    const componentProps: Record<string, unknown> = {
+      ...(def['x-component-props'] ?? {}),
+    }
+    let xComponent = def['x-component']
+    if (slot?.candidates?.length) {
+      xComponent =
+        field === 'customerId'
+          ? 'CustomerSelect'
+          : field === 'productId'
+            ? 'ProductSelect'
+            : 'Select'
+      componentProps.options = slot.candidates.map((c) => ({
+        value: c.id,
+        label: c.hint ? `${c.label} · ${c.hint}` : c.label,
+      }))
+      componentProps.placeholder = `请选择（${slot.candidates.length} 个候选）`
+      componentProps.allowClear = true
     }
 
     properties[field] = {
       ...def,
+      'x-component': xComponent,
+      'x-component-props': componentProps,
       // 值注入：消解结果填进表单（推断值会被黄色标签标明，绝不静默）
       default: slot?.value ?? def.default,
       ...(Object.keys(decoratorProps).length
@@ -105,6 +128,7 @@ export function ConfirmCard({
   verb,
   risk,
   question,
+  utterance,
   revisesSeq,
   submitLabel,
   submitting,
@@ -112,6 +136,7 @@ export function ConfirmCard({
   onCancel,
 }: Props) {
   const formSchema = useMemo(() => buildFormSchema(schema, slots), [schema, slots])
+  const [remembering, setRemembering] = useState(false)
 
   const initialValues = useMemo(() => {
     const v: Record<string, unknown> = {}
@@ -132,6 +157,55 @@ export function ConfirmCard({
     user: slots.filter((s) => s.source === 'user').length,
     inferred: slots.filter((s) => s.source === 'inferred').length,
     missing: slots.filter((s) => s.source === 'missing' && s.required).length,
+  }
+
+  const rememberableSlots = slots.filter(
+    (s) =>
+      (s.slot === 'customer' || s.slot === 'product') &&
+      s.raw != null &&
+      String(s.raw).trim().length >= 2 &&
+      s.value != null
+  )
+
+  async function rememberPhrase() {
+    const values = { ...form.values }
+    setRemembering(true)
+    try {
+      if (utterance?.trim()) {
+        await fetch('/api/lexicon', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phrase: utterance.trim(),
+            kind: 'verb',
+            verb,
+            source: 'explicit',
+          }),
+        })
+      }
+      for (const s of rememberableSlots) {
+        const targetId = values[s.field] ?? s.value
+        if (targetId == null || targetId === '') continue
+        await fetch('/api/lexicon', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            phrase: String(s.raw).trim(),
+            kind: 'slot',
+            slot: s.slot,
+            targetId: String(targetId),
+            targetLabel: s.label ?? String(targetId),
+            targetRaw: String(s.raw),
+            source: 'explicit',
+          }),
+        })
+      }
+      message.success('已记住这些说法')
+    } catch (e: any) {
+      message.error(String(e?.message ?? e))
+    } finally {
+      setRemembering(false)
+    }
   }
 
   return (
@@ -202,7 +276,6 @@ export function ConfirmCard({
         </div>
       )}
 
-      {/* ↓↓↓ 地基验证点：这一行下面是零手写表单代码，全部由 JSON Schema 渲染 */}
       <FormProvider form={form}>
         <FormLayout layout="vertical" size="large" colon={false}>
           <SchemaField schema={formSchema} />
@@ -211,22 +284,34 @@ export function ConfirmCard({
 
       <Divider style={{ margin: '12px 0' }} />
 
-      <Space style={{ width: '100%', justifyContent: 'flex-end' }}>
-        <Button onClick={onCancel} disabled={submitting}>
-          取消
+      <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
+        <Button
+          size="small"
+          type="link"
+          loading={remembering}
+          disabled={submitting || (!utterance?.trim() && !rememberableSlots.length)}
+          onClick={rememberPhrase}
+          title="把当前说法写入个人用语表"
+        >
+          记住这个说法
         </Button>
-        <FormConsumer>
-          {() => (
-            <Button
-              type="primary"
-              danger={risk === 'write'}
-              loading={submitting}
-              onClick={() => onSubmit({ ...form.values })}
-            >
-              {submitLabel ?? (risk === 'write' ? `确认${title}` : '执行')}
-            </Button>
-          )}
-        </FormConsumer>
+        <Space>
+          <Button onClick={onCancel} disabled={submitting}>
+            取消
+          </Button>
+          <FormConsumer>
+            {() => (
+              <Button
+                type="primary"
+                danger={risk === 'write'}
+                loading={submitting}
+                onClick={() => onSubmit({ ...form.values })}
+              >
+                {submitLabel ?? (risk === 'write' ? `确认${title}` : '执行')}
+              </Button>
+            )}
+          </FormConsumer>
+        </Space>
       </Space>
     </Card>
   )

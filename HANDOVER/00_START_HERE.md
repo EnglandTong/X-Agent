@@ -5,7 +5,7 @@
 
 **项目代号**：AGT-ERP · Agent 驱动的 ERP（PoC）
 **档案版本**：v1.2 · 2026-09-06（12 动词闭环 + 评测基线）
-**代码状态**：W0–W1 主线完成；**12/12 动词**；规则评测基线已出；**真实 API Key 仍待 Owner 填写**
+**代码状态**：12/12 动词；**云端模型已通电**；双跑评测基线已出（模型 ≥ 规则）
 
 ### 事实源优先级（避免多份互相打架）
 
@@ -37,16 +37,18 @@
 | 项目 | 状态 | 说明 |
 |---|---|---|
 | 动词数量 | ✅ **12 / 12** | 销售订单→出货主线已齐（不含备选 price.query） |
-| Agent 引擎 | ⚠️ **规则引擎为主** | Pi 风格循环 + LLM 接入已落地；**未填真实 Key**，模型准确率未实跑 |
+| Agent 引擎 | ✅ **云端模型已通** | `doubao-seed-2.0-lite`；失败仍回落 rules |
 | 前端画布 | ✅ 可用 | 不可变格子 + 修订 / 变更单分流 + 语音输入按钮 |
 | 数据库 | ✅ SQLite | 含 Delivery / Inventory.reserved；4 客户 / 3 产品 / 4 订单 |
-| 本地运行 | ⚠️ 按需启动 | `cd app && npm run serve` → `http://localhost:3001` |
+| 本地运行 | ✅ 已启动 | `http://localhost:3001`（按需） |
 | 源码版本 | ✅ GitHub `main` | `EnglandTong/Agent_ERP` |
 | 远程仓库 | ✅ **已建** | `https://github.com/EnglandTong/Agent_ERP.git` |
-| 密钥文件 | ✅ `.env` 不进 Git | Key 写 `.env.local` |
-| 评测 | ✅ 规则基线 | 50 条 · 动词 96% · 槽位 98.3%（见 `app/eval/BASELINE.md`） |
-| 已验证项 | ✅ 见 `05_TEST_LOG.md` | 含 12 动词冒烟 |
-| 未验证项 | ⚠️ | **真实模型准确率**、并发、PostgreSQL |
+| 密钥文件 | ✅ Key 在 `.env.local` | 设置面板已填；不进 Git |
+| 评测 | ✅ 双跑基线 + 用语夹具 + 对比脚手架 | `eval` / `eval:lexicon` / `eval:compare` |
+| 个人用语表 | ✅ 已落地 | 确认卡「记住」+ 确认后提议；无向量库 |
+| 出货剩余量 | ✅ 部分出货 / 超量硬拦 | `PARTIALLY_SHIPPED` |
+| 已验证项 | ✅ 见 `05_TEST_LOG.md` | 含连通性 + 12 动词冒烟 + 用语/出货 |
+| 未验证项 | ⚠️ | 本地小模型实跑、Owner 10 条真试用、并发、PostgreSQL |
 
 ---
 
@@ -67,7 +69,8 @@
 | P | 事项 | 验收标准 |
 |---|---|---|
 | **P0** | 让 Owner 填火山 API Key，「保存并测试」后跑 `npm run eval` | 模型列有数字；对比表更新 BASELINE |
-| **P1** | 根据错例打磨 prompt / 规则 | failures.jsonl 下降 |
+| **P1** | Owner 画布跑 10 条真口吻（开单→确认→部分出货→记住说法） | 手感稳定；错例进 failures |
+| **P1** | 配本地小模型后 `npm run eval:compare`（勿设 SKIP_CLOUD） | `compare-models.md` 含 cloud+local |
 | **P2** | 阶段备份：push + 重打网盘包 | 见 `07_OPS.md` |
 
 ---
@@ -100,3 +103,4 @@
 | `08_FILE_TREE.md` | 每个文件的职责 | 找代码时 |
 | `09_GLOSSARY.md` | 术语表 + Owner 协作偏好 | 沟通前 |
 | `10_SESSION_LOG.md` | 历次讨论流水（谁说了什么、怎么定的） | 想知道「为什么」时 |
+| `11_PERSONAL_LEXICON.md` | 个人用语表 schema + resolve/画布插入点 | 做习惯学习 / 别称记忆时 |

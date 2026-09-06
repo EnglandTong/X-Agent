@@ -37,16 +37,35 @@ export function EntitySelect(props: any) {
   }, [entity])
 
   const merged = useMemo(() => {
-    // 保证当前值即便不在列表里也能显示（例如历史数据）
-    if (rest.value && !options.some((o) => o.value === rest.value)) {
-      return [{ value: rest.value, label: rest.value }, ...options]
+    // 确认卡注入的歧义候选优先；再补上全量列表
+    const injected = Array.isArray(rest.options) ? rest.options : []
+    const byValue = new Map<string, any>()
+    for (const o of [...injected, ...options]) {
+      const v = o?.value
+      if (v == null) continue
+      if (!byValue.has(v)) byValue.set(v, o)
     }
-    return options
-  }, [options, rest.value])
+    if (rest.value && !byValue.has(rest.value)) {
+      byValue.set(rest.value, { value: rest.value, label: rest.value })
+    }
+    // 有候选时：候选排前面，方便点选
+    const list = [...byValue.values()]
+    if (injected.length) {
+      const injIds = new Set(injected.map((o: any) => o.value))
+      return [
+        ...list.filter((o) => injIds.has(o.value)),
+        ...list.filter((o) => !injIds.has(o.value)),
+      ]
+    }
+    return list
+  }, [options, rest.value, rest.options])
+
+  // 不要把 options 再传给 Select（已用 merged）
+  const { options: _ignore, ...selectProps } = rest
 
   return (
     <Select
-      {...rest}
+      {...selectProps}
       loading={loading}
       showSearch
       optionFilterProp="label"
@@ -58,6 +77,15 @@ export function EntitySelect(props: any) {
       style={{ width: '100%', ...(rest.style ?? {}) }}
     />
   )
+}
+
+/** Schema 里写 CustomerSelect / ProductSelect —— 与 EntitySelect 同一套异步下拉 */
+export function CustomerSelect(props: any) {
+  return <EntitySelect {...props} entity="customer" />
+}
+
+export function ProductSelect(props: any) {
+  return <EntitySelect {...props} entity="product" />
 }
 
 export const TextArea = (props: any) => (

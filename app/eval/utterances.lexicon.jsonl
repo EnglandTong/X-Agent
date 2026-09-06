@@ -1,0 +1,3 @@
+{"id":"lex-01","utterance":"开张单给老王来10个圆珠笔","verb":"order.create","slots":{"customer":"老王","product":"圆珠笔","quantity":"10"}}
+{"id":"lex-02","utterance":"开张单","verb":"order.create","slots":{}}
+{"id":"lex-03","utterance":"给老王查信用","verb":"credit.check","slots":{"customer":"老王"}}

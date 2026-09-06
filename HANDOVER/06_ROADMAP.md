@@ -26,6 +26,37 @@
 3. 在 `registry.ts` 与 `index.ts` 的动词清单里注册
 4. 前端零改动（表单按 Schema 渲染）
 
+### 加能力检查清单（强制 · 落地计划阶段 0）
+
+以后加能力只走下面一条路；个人习惯说法走用语表，不塞进 prompt。
+
+| # | 检查项 | 完成标准 |
+|---|---|---|
+| 1 | 辨认类型 | 新动词 / 加深已有规则 / 用语·消解 三选一 |
+| 2 | Schema | `app/src/schema/<verb>.json` 含完整 `x-agent` |
+| 3 | Handler | `app/src/server/verbs/<verb>.ts` + `registry.ts` 注册 |
+| 4 | 前端 | **零改**（确认卡由 Formily 渲染）；仅用语入口可改 ConfirmCard |
+| 5 | 评测 | `app/eval/utterances.jsonl` 补 3–5 条口吻；`npm run eval` |
+| 6 | 档案 | 更新 `05_TEST_LOG.md`；动词规格改 `03_VERBS.md`；决策改 `04_DECISIONS.md` |
+| 7 | 红线 | 写操作必经确认卡；模型只出原话片段；不扩采购/财务/权限 |
+
+**开工三问（给 Agent / 自己）：**
+1. 要加的是新动词、加深规则，还是用语/消解？
+2. 验收口吻一句是什么？
+3. 是否动 Prisma / 是否进 eval？
+
+**落地阶段验收表（系统打通 + 个人用语）**
+
+| 阶段 | 验收 |
+|---|---|
+| 0 开发约定 | 本清单已写入；扩展只按上表 |
+| 1 个人用语表 | 记住「老王」/「开张单」→ 下次确认卡命中；未同意不入库 |
+| 2 出货加深 | 部分出货 + 超量硬拦；code 消解优先 |
+| 3 真链路 | Owner 10 条口吻开单→确认→出货；错例收口 |
+| 4 小模型对比 | 同一 eval：云端 vs 本地对比表（达标后再内嵌） |
+
+详见 `11_PERSONAL_LEXICON.md`。
+
 ---
 
 ## 二、W1 待办（当前阶段）
@@ -42,6 +73,9 @@
 | **P2** | 语音输入 | ✅ Web Speech → interpret | — |
 | **P2** | 阶段结束：提交 + push；重打 zip/bundle | 本轮收口 | Owner |
 | **P3** | 换 PostgreSQL | 改 provider + url | — |
+| **P3** | 个人用语表（设计见 `11_PERSONAL_LEXICON.md`） | ✅ 已落地；`npm run eval:lexicon` | — |
+| **P3** | 出货剩余量 / 禁止超量 | ✅ `smoke-delivery-remaining.ts` | — |
+| **P3** | 云端 vs 本地小模型对比脚手架 | ✅ `npm run eval:compare` | 本地模型待配 |
 
 ---
 

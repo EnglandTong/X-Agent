@@ -7,7 +7,7 @@ import {
   DatePicker,
   Space,
 } from '@formily/antd-v5'
-import { EntitySelect, TextArea } from './widgets'
+import { EntitySelect, CustomerSelect, ProductSelect, TextArea } from './widgets'
 
 /**
  * Formily SchemaField —— 整个架构的地基。
@@ -28,5 +28,7 @@ export const SchemaField = createSchemaField({
     DatePicker,
     Space,
     EntitySelect,
+    CustomerSelect,
+    ProductSelect,
   },
 })

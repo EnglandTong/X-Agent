@@ -1,12 +1,18 @@
 import { useState, useEffect, useRef } from 'react'
 import { Input, Button, Tag, Space, Empty, Spin, Popconfirm, message } from 'antd'
-import { SendOutlined, ClearOutlined, SettingOutlined, AudioOutlined } from '@ant-design/icons'
+import {
+  SendOutlined,
+  ClearOutlined,
+  SettingOutlined,
+  AudioOutlined,
+  PlusOutlined,
+} from '@ant-design/icons'
 import { ConfirmCard } from './ConfirmCard'
 import { PanelCard } from './PanelCard'
 import { SettingsModal } from './SettingsModal'
 import type { Panel, SlotResult, VerbResult } from '../types'
 
-/** 活动格：还没提交的那一格，永远最多一个 */
+/** 活动格：还没提交的那一格，永远最多一个（且只属于当前工作页） */
 interface Draft {
   verb: string
   title: string
@@ -16,14 +22,28 @@ interface Draft {
   risk: 'read' | 'write'
   utterance: string
   supersedesId?: string
-  /** 原地修订（仅草稿可用） */
   orderId?: string
-  /** 变更单：指向原单号，两单各自独立存在 */
   originNo?: string
   revisesSeq?: number
-  /** 这一格是谁抽的：rules 还是 llm */
   engine?: string
   llm?: { ms: number; error?: string; raw?: string }
+}
+
+interface WorkSession {
+  sessionId: string
+  title: string
+  panelCount: number
+  correlationId: string | null
+}
+
+interface LexPropose {
+  phrase: string
+  kind: 'verb' | 'slot'
+  verb?: string
+  slot?: string
+  targetId?: string
+  targetLabel?: string
+  targetRaw?: string
 }
 
 const EXAMPLES = [
@@ -33,45 +53,184 @@ const EXAMPLES = [
   { label: '只读查询', text: '查一下张三最近订单' },
 ]
 
+const CONTINUE_VERBS = new Set([
+  'order.confirm',
+  'order.cancel',
+  'order.query',
+  'delivery.create',
+  'delivery.confirm',
+  'delivery.query',
+  'inventory.query',
+  'inventory.reserve',
+  'inventory.release',
+  'customer.query',
+  'credit.check',
+])
+
+function newSessionId() {
+  return `work-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`
+}
+
+function mergeSessionLists(prev: WorkSession[], incoming: WorkSession[]): WorkSession[] {
+  const map = new Map<string, WorkSession>()
+  for (const s of prev) map.set(s.sessionId, s)
+  for (const s of incoming) {
+    const old = map.get(s.sessionId)
+    if (!old || s.panelCount >= old.panelCount) map.set(s.sessionId, s)
+  }
+  return [...map.values()].sort((a, b) => {
+    // 有内容的在前，其次保持 incoming 顺序近似（新的在前）
+    if (a.panelCount === 0 && b.panelCount > 0) return 1
+    if (b.panelCount === 0 && a.panelCount > 0) return -1
+    return 0
+  })
+}
+
+function titleFromPanels(panels: Panel[]): string {
+  const last = [...panels].reverse()[0]
+  if (!last) return '工作'
+  const no = (last.result?.data as any)?.no
+  const customer = (last.result?.data as any)?.customer
+  if (no) return String(no)
+  if (customer) return String(customer)
+  if (last.utterance) return last.utterance.slice(0, 16)
+  return last.title || last.verb || '工作'
+}
+
 export default function App() {
+  const [sessionId, setSessionId] = useState('default')
+  const [sessions, setSessions] = useState<WorkSession[]>([])
   const [panels, setPanels] = useState<Panel[]>([])
   const [draft, setDraft] = useState<Draft | null>(null)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
   const [loading, setLoading] = useState(true)
   const [settingsOpen, setSettingsOpen] = useState(false)
-  /** 当前 Agent 引擎，显示在底部标签上 —— 让人随时知道「现在是模型在猜还是规则在算」 */
   const [engine, setEngine] = useState<{ provider: string; model: string }>({
     provider: 'rules',
     model: '',
   })
   const canvasRef = useRef<HTMLDivElement>(null)
+  const sessionIdRef = useRef(sessionId)
+  const panelsRef = useRef(panels)
   const [listening, setListening] = useState(false)
+  const [lexProposals, setLexProposals] = useState<LexPropose[]>([])
+
+  useEffect(() => {
+    sessionIdRef.current = sessionId
+  }, [sessionId])
+  useEffect(() => {
+    panelsRef.current = panels
+  }, [panels])
 
   const scrollDown = () =>
     setTimeout(() => {
       canvasRef.current?.scrollTo({ top: canvasRef.current.scrollHeight, behavior: 'smooth' })
     }, 80)
 
-  const reload = async () => {
-    const r = await fetch('/api/panels').then((x) => x.json())
-    setPanels(r)
+  /** 离开当前页之前：把本页登记进 Tab 列表（即使还没重新拉 API） */
+  function parkCurrentSession(override?: { sessionId: string; panels: Panel[] }) {
+    const sid = override?.sessionId ?? sessionIdRef.current
+    const ps = override?.panels ?? panelsRef.current
+    if (!ps.length) return
+    const snap: WorkSession = {
+      sessionId: sid,
+      title: titleFromPanels(ps),
+      panelCount: ps.length,
+      correlationId: [...ps].reverse().find((p) => p.correlationId)?.correlationId ?? null,
+    }
+    setSessions((prev) => mergeSessionLists(prev, [snap]))
+  }
+
+  const reloadSessions = async () => {
+    try {
+      const res = await fetch('/api/sessions')
+      const list = await res.json()
+      if (Array.isArray(list)) {
+        setSessions((prev) => mergeSessionLists(prev, list))
+      }
+    } catch {
+      /* 保留本地 Tab，不因接口失败清空 */
+    }
+  }
+
+  const reload = async (sid = sessionIdRef.current) => {
+    const r = await fetch(`/api/panels?sessionId=${encodeURIComponent(sid)}`).then((x) =>
+      x.json()
+    )
+    setPanels(Array.isArray(r) ? r : [])
+    await reloadSessions()
     setLoading(false)
     scrollDown()
   }
 
   useEffect(() => {
-    reload()
+    reload('default')
     fetch('/api/settings')
       .then((r) => r.json())
       .then((s) => setEngine({ provider: s.provider, model: s.model }))
       .catch(() => {})
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  /** 顶部上下文：取最近一格有业务对象的关联键 */
+  useEffect(() => {
+    setLoading(true)
+    reload(sessionId)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId])
+
   const current = [...panels].reverse().find((p) => p.correlationId)
 
-  // ---------------------------------------------------------------- 语音输入（Web Speech API → 同一条 interpret）
+  /** 同一链路继续留下；「新开一张业务单」且当前页已有内容 → 新工作页（旧页变 Tab） */
+  function shouldOpenNewWork(
+    verb: string,
+    panelCount: number,
+    extra?: { originNo?: string; orderId?: string; supersedesId?: string }
+  ) {
+    if (panelCount === 0) return false
+    if (extra?.originNo || extra?.orderId || extra?.supersedesId) return false
+    if (CONTINUE_VERBS.has(verb)) return false
+    return verb === 'order.create'
+  }
+
+  /** 开新页：先把旧页钉在 Tab 上，再切换 —— 绝不删库 */
+  function openNewWorkPage(reason?: string): string {
+    parkCurrentSession()
+    const sid = newSessionId()
+    // 先登记空的新页，保证 Tab 上立刻能看到「新旧两个」
+    setSessions((prev) =>
+      mergeSessionLists(prev, [
+        {
+          sessionId: sid,
+          title: '新工作',
+          panelCount: 0,
+          correlationId: null,
+        },
+      ])
+    )
+    setDraft(null)
+    setPanels([])
+    setSessionId(sid)
+    sessionIdRef.current = sid
+    panelsRef.current = []
+    if (reason) message.info(reason)
+    else message.success('已新开工作页；旧工作在上方 Tab')
+    return sid
+  }
+
+  function startNewWork() {
+    openNewWorkPage()
+  }
+
+  function switchSession(sid: string) {
+    if (sid === sessionIdRef.current) return
+    // 切换走之前也钉一下当前页，避免空窗期 Tab 丢
+    parkCurrentSession()
+    setDraft(null)
+    setSessionId(sid)
+  }
+
+  // ---------------------------------------------------------------- 语音
 
   function startVoice() {
     const SR =
@@ -119,9 +278,14 @@ export default function App() {
         return
       }
 
-      // 只读 + 无缺失 → 不必让人再点一次，直接跑
+      // 新工作：当前页已有链路，又来一张全新建单 → 旧页钉成 Tab，再开新页
+      let sid = sessionIdRef.current
+      if (shouldOpenNewWork(interp.verb, panelsRef.current.length)) {
+        sid = openNewWorkPage('已开新工作页；旧工作保留在上方 Tab')
+      }
+
       if (interp.ready && interp.risk === 'read') {
-        await execute(interp.verb, text, interp.slots)
+        await execute(interp.verb, text, interp.slots, undefined, undefined, sid)
         return
       }
 
@@ -150,10 +314,19 @@ export default function App() {
     utterance: string,
     slots: SlotResult[],
     values?: Record<string, unknown>,
-    extra?: { supersedesId?: string; orderId?: string; originNo?: string }
+    extra?: { supersedesId?: string; orderId?: string; originNo?: string },
+    forcedSessionId?: string
   ) {
     setBusy(true)
     try {
+      let sid = forcedSessionId ?? sessionIdRef.current
+      if (
+        !forcedSessionId &&
+        shouldOpenNewWork(verb, panelsRef.current.length, extra)
+      ) {
+        sid = openNewWorkPage('已开新工作页；旧工作保留在上方 Tab')
+      }
+
       const args: Record<string, unknown> = { ...(values ?? {}) }
       for (const s of slots) {
         if (args[s.field] === undefined && s.value !== null) args[s.field] = s.value
@@ -171,21 +344,47 @@ export default function App() {
       const res = await fetch(`/api/verbs/${verb}/run`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ args, slots, supersedesId: extra?.supersedesId ?? null }),
+        body: JSON.stringify({
+          args,
+          slots,
+          supersedesId: extra?.supersedesId ?? null,
+          sessionId: sid,
+        }),
       }).then((r) => r.json())
 
       if (res.error) message.error(res.error)
-      else if (res.ok) message.success(res.message)
-      else message.warning(res.message)
+      else if (res.ok) {
+        message.success(res.message)
+        // 确认后提议记住（改过预填或曾歧义）—— 未同意不入库
+        try {
+          const prop = await fetch('/api/lexicon/propose', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              utterance,
+              verb,
+              slots,
+              submittedValues: values ?? {},
+            }),
+          }).then((r) => r.json())
+          if (Array.isArray(prop.proposals) && prop.proposals.length) {
+            setLexProposals(prop.proposals)
+          }
+        } catch {
+          /* 提议失败不影响主流程 */
+        }
+      } else message.warning(res.message)
 
       setDraft(null)
-      await reload()
+      sessionIdRef.current = sid
+      if (sid !== sessionId) setSessionId(sid)
+      await reload(sid)
     } finally {
       setBusy(false)
     }
   }
 
-  // ---------------------------------------------------------------- 修订
+  // ---------------------------------------------------------------- 修订（留在同一工作页）
 
   async function revise(panel: Panel) {
     setBusy(true)
@@ -200,13 +399,18 @@ export default function App() {
         message.error(prep.error)
         return
       }
-      // 分流：草稿原地改，已确认/已出货只能另开变更单
       const isDraft = prep.originStatus === 'DRAFT'
       const slots = isDraft
         ? prep.slots
         : prep.slots.map((s: SlotResult) =>
             s.slot === 'origin_no'
-              ? { ...s, value: prep.originNo, label: prep.originNo, source: 'user' as const, note: '串联两单的关键词' }
+              ? {
+                  ...s,
+                  value: prep.originNo,
+                  label: prep.originNo,
+                  source: 'user' as const,
+                  note: '串联两单的关键词',
+                }
               : s
           )
 
@@ -224,8 +428,8 @@ export default function App() {
       })
       message.info(
         isDraft
-          ? `已带出 #${panel.seq} 的内容，提交后新开一格，原单 ${prep.orderNo} 原地更新`
-          : `原单 ${prep.orderNo} 已确认不可改 → 将另开一张新单，通过「原单号」与之串联`
+          ? `已带出 #${panel.seq} 的内容，仍在本工作页继续`
+          : `原单 ${prep.orderNo} 已确认 → 变更单仍在本工作页串联`
       )
       scrollDown()
     } finally {
@@ -233,12 +437,7 @@ export default function App() {
     }
   }
 
-  /** 通用：按 Schema 开一格，prefill 是「字段名 → 值」 */
-  async function openVerb(
-    verb: string,
-    prefill: Record<string, unknown>,
-    title?: string
-  ) {
+  async function openVerb(verb: string, prefill: Record<string, unknown>, title?: string) {
     const schema = await fetch(`/api/schema/${verb}`).then((r) => r.json())
     const slots: SlotResult[] = Object.entries(schema.properties ?? {}).map(
       ([field, def]: [string, any]) => {
@@ -269,10 +468,26 @@ export default function App() {
   }
 
   async function clearCanvas() {
-    await fetch('/api/panels', { method: 'DELETE' })
+    const sid = sessionIdRef.current
+    await fetch(`/api/panels?sessionId=${encodeURIComponent(sid)}`, {
+      method: 'DELETE',
+    })
     setDraft(null)
-    await reload()
+    setSessions((prev) =>
+      prev.map((s) => (s.sessionId === sid ? { ...s, panelCount: 0, title: '空工作页' } : s))
+    )
+    await reload(sid)
   }
+
+  // Tab 栏：合并本地登记 + 当前页，旧页不会因为切走而消失
+  const tabList: WorkSession[] = mergeSessionLists(sessions, [
+    {
+      sessionId,
+      title: panels.length ? titleFromPanels(panels) : '新工作',
+      panelCount: panels.length,
+      correlationId: current?.correlationId ?? null,
+    },
+  ])
 
   // ---------------------------------------------------------------- 渲染
 
@@ -287,7 +502,61 @@ export default function App() {
         background: '#f0f2f5',
       }}
     >
-      {/* 顶部：当前工作对象（跨格子共享上下文） */}
+      {/* 工作页 Tab：同一链路往下堆；新要求开新页，旧页收成 Tab */}
+      <div
+        style={{
+          background: '#fff',
+          borderBottom: '1px solid #f0f0f0',
+          padding: '6px 8px 0',
+          flexShrink: 0,
+          display: 'flex',
+          alignItems: 'flex-end',
+          gap: 4,
+          overflowX: 'auto',
+        }}
+      >
+        {tabList.map((s) => {
+          const active = s.sessionId === sessionId
+          return (
+            <button
+              key={s.sessionId}
+              type="button"
+              onClick={() => switchSession(s.sessionId)}
+              style={{
+                border: '1px solid #e8e8e8',
+                borderBottom: active ? '1px solid #fff' : '1px solid #e8e8e8',
+                background: active ? '#fff' : '#fafafa',
+                borderRadius: '6px 6px 0 0',
+                padding: '4px 10px',
+                fontSize: 11,
+                cursor: 'pointer',
+                maxWidth: 140,
+                overflow: 'hidden',
+                textOverflow: 'ellipsis',
+                whiteSpace: 'nowrap',
+                color: active ? '#1677ff' : '#595959',
+                fontWeight: active ? 600 : 400,
+                marginBottom: active ? -1 : 0,
+              }}
+              title={s.title}
+            >
+              {s.title}
+              {s.panelCount > 0 ? (
+                <span style={{ color: '#bfbfbf', marginLeft: 4 }}>{s.panelCount}</span>
+              ) : null}
+            </button>
+          )
+        })}
+        <Button
+          size="small"
+          type="text"
+          icon={<PlusOutlined />}
+          onClick={startNewWork}
+          title="新开一个工作页"
+          style={{ marginBottom: 2 }}
+        />
+      </div>
+
       <div
         style={{
           background: '#fff',
@@ -320,13 +589,18 @@ export default function App() {
             icon={<SettingOutlined />}
             onClick={() => setSettingsOpen(true)}
           />
-          <Popconfirm title="清空整个画布？" onConfirm={clearCanvas} okText="清空" cancelText="取消">
+          <Popconfirm
+            title="清空当前工作页？"
+            description="其它 Tab 里的旧工作不会被删"
+            onConfirm={clearCanvas}
+            okText="清空本页"
+            cancelText="取消"
+          >
             <Button size="small" type="text" icon={<ClearOutlined />} />
           </Popconfirm>
         </Space>
       </div>
 
-      {/* 画布 */}
       <div ref={canvasRef} style={{ flex: 1, overflowY: 'auto', padding: 10 }}>
         {loading ? (
           <div style={{ textAlign: 'center', padding: 40 }}>
@@ -336,9 +610,9 @@ export default function App() {
           <Empty
             description={
               <span style={{ fontSize: 12 }}>
-                画布是空的
+                本工作页是空的
                 <br />
-                在下面说一句话，就会画出第一格
+                说一句话开始；再开一张新单会自动新开一页
               </span>
             }
             image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -361,13 +635,87 @@ export default function App() {
           />
         ))}
 
+        {lexProposals.length > 0 && (
+          <div
+            style={{
+              background: '#f6ffed',
+              border: '1px solid #b7eb8f',
+              borderRadius: 6,
+              padding: '8px 10px',
+              marginBottom: 8,
+              fontSize: 12,
+            }}
+          >
+            <div style={{ marginBottom: 6, color: '#389e0d' }}>要记住这些习惯说法吗？</div>
+            {lexProposals.map((p, i) => (
+              <div
+                key={`${p.phrase}-${i}`}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 4,
+                }}
+              >
+                <span>
+                  「{p.phrase}」→ {p.targetLabel ?? p.verb ?? p.slot}
+                </span>
+                <Space size={4}>
+                  <Button
+                    size="small"
+                    type="link"
+                    onClick={async () => {
+                      await fetch('/api/lexicon', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ ...p, source: 'confirmed' }),
+                      })
+                      setLexProposals((prev) => prev.filter((_, j) => j !== i))
+                      message.success('已记住')
+                    }}
+                  >
+                    记住
+                  </Button>
+                  <Button
+                    size="small"
+                    type="text"
+                    onClick={async () => {
+                      await fetch('/api/lexicon', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                          phrase: p.phrase,
+                          kind: p.kind,
+                          slot: p.slot,
+                          verb: p.verb,
+                          targetId: p.targetId,
+                          targetLabel: p.targetLabel,
+                          source: 'confirmed',
+                          status: 'rejected',
+                        }),
+                      })
+                      setLexProposals((prev) => prev.filter((_, j) => j !== i))
+                    }}
+                  >
+                    忽略
+                  </Button>
+                </Space>
+              </div>
+            ))}
+            <Button size="small" type="text" onClick={() => setLexProposals([])}>
+              全部忽略
+            </Button>
+          </div>
+        )}
+
         {draft && (
           <div style={{ marginBottom: 6 }}>
             {draft.llm?.error ? (
               <Tag color="red" style={{ fontSize: 10 }}>
                 模型失败已回落规则：{draft.llm.error}
               </Tag>
-            ) : draft.engine === 'llm' ? (
+            ) : draft.engine === 'llm' || draft.engine === 'pi' ? (
               <Tag color="purple" style={{ fontSize: 10 }}>
                 模型抽取 · {draft.llm?.ms ?? '—'}ms
               </Tag>
@@ -384,13 +732,10 @@ export default function App() {
             verb={draft.verb}
             risk={draft.risk}
             question={draft.question}
+            utterance={draft.utterance}
             revisesSeq={draft.revisesSeq}
             submitLabel={
-              draft.originNo
-                ? '提交变更单'
-                : draft.orderId
-                  ? '提交修订'
-                  : undefined
+              draft.originNo ? '提交变更单' : draft.orderId ? '提交修订' : undefined
             }
             submitting={busy}
             onSubmit={(values) =>
@@ -405,7 +750,6 @@ export default function App() {
         )}
       </div>
 
-      {/* 底部：命令输入，永远在最下面 */}
       <div
         style={{
           background: '#fff',
@@ -439,7 +783,7 @@ export default function App() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onPressEnter={() => send(input)}
-            placeholder="说一句话，或点麦克风（同一条 interpret 链路）"
+            placeholder="同一链路继续说；新开一张单会自动新开工作页"
             disabled={busy}
             prefix={<span style={{ color: '#52c41a', fontWeight: 700 }}>›</span>}
           />

@@ -51,7 +51,7 @@ model Order {
   no             String      @unique
   customerId     String
   warehouse      String?
-  /// DRAFT | CONFIRMED | SHIPPED | CANCELLED | SUPERSEDED
+  /// DRAFT | CONFIRMED | PARTIALLY_SHIPPED | SHIPPED | CANCELLED | SUPERSEDED
   status         String      @default("DRAFT")
   originNo       String?
   supersededByNo String?
@@ -100,6 +100,38 @@ model DeliveryItem {
   qty        Int
   delivery   Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
   product    Product  @relation(fields: [productId], references: [id])
+}
+
+/// 个人用语表 —— 习惯说法 → 动词或槽位目标（非向量库）
+model PersonalLexeme {
+  id          String    @id @default(cuid())
+  userId      String    @default("owner")
+  /// 归一化后用于匹配；写入时由代码生成
+  phraseNorm  String
+  /// 用户看见的原始说法
+  phrase      String
+  /// verb | slot
+  kind        String
+  /// kind=verb 时必填
+  verb        String?
+  /// kind=slot 时必填，如 customer / product；kind=verb 时为空串
+  slot        String    @default("")
+  /// 落库目标：客户/产品主键，或枚举值；动词映射可空
+  targetId    String?
+  targetLabel String?
+  targetRaw   String?
+  /// explicit | confirmed
+  source      String
+  /// active | rejected | retired
+  status      String    @default("active")
+  hits        Int       @default(0)
+  lastUsedAt  DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@unique([userId, phraseNorm, kind, slot])
+  @@index([userId, status])
+  @@index([userId, kind, verb])
 }
 
 /// 画布格子 —— 既是界面上的一格，也是一条不可变审计记录

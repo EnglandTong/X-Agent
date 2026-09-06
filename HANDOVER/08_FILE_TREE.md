@@ -25,7 +25,9 @@
 | `server/agent.ts` | 595 | **核心编排**：意图 → 抽取 → 消解 → 推断 → 缺失判定 | 换模型只影响这里的第 2 步 |
 | `server/llm.ts` | 303 | OpenAI 兼容客户端（火山/DeepSeek/Ollama 通用）+ 连通性诊断 | 含 JSON 模式降级 |
 | `server/settings.ts` | 154 | 模型配置读写 `.env.local`、Key 掩码、模型预设 | Key 不进 git |
-| `server/resolve.ts` | 415 | 消解器：8 种 resolution 策略 | **确定性代码**，模型不参与 |
+| `server/resolve.ts` | 415 | 消解器：8 种 resolution 策略 | **确定性代码**，模型不参与；个人用语优先 |
+| `server/lexicon.ts` | — | 个人用语表 CRUD / 匹配 / 提议 | 非向量库 |
+| `server/remaining.ts` | — | 订单行剩余可出货量 | delivery.* 共用 |
 | `server/panels.ts` | 229 | 格子落库、修订准备（查实时状态）、链路查询 | |
 | `server/verbs/registry.ts` | 24 | 动词注册表 | |
 | `server/verbs/types.ts` | 47 | 动词接口定义 | |
