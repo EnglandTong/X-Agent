@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "取消订单",
+  "x-verb": "order.cancel",
+  "x-description": "取消草稿或已确认订单。已出货不可取消。必须填写取消原因。",
+  "x-risk": "write",
+  "x-requires-confirm": true,
+  "properties": {
+    "orderNo": {
+      "type": "string",
+      "title": "订单号",
+      "x-component": "Input",
+      "x-decorator": "FormItem",
+      "x-validator": [{ "required": true, "message": "请填写订单号" }],
+      "x-index": 10,
+      "x-agent": {
+        "extract": "order_no",
+        "resolution": "order_lookup",
+        "askIfMissing": true,
+        "examples": ["取消SO-2026-1004", "把1003取消掉"]
+      }
+    },
+    "reason": {
+      "type": "string",
+      "title": "取消原因",
+      "x-component": "Input",
+      "x-decorator": "FormItem",
+      "x-validator": [{ "required": true, "message": "请填写取消原因" }],
+      "x-index": 20,
+      "x-agent": {
+        "extract": "reason",
+        "resolution": "passthrough",
+        "askIfMissing": true,
+        "examples": ["客户不要了", "录错了", "改规格"]
+      }
+    }
+  },
+  "required": ["orderNo", "reason"]
+}

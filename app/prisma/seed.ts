@@ -15,6 +15,8 @@ function daysFromNow(n: number) {
 async function main() {
   // 清空（验证阶段可以反复跑）
   await prisma.panel.deleteMany()
+  await prisma.deliveryItem.deleteMany()
+  await prisma.delivery.deleteMany()
   await prisma.orderItem.deleteMany()
   await prisma.order.deleteMany()
   await prisma.inventory.deleteMany()
@@ -49,7 +51,7 @@ async function main() {
   for (const p of products) {
     for (const w of warehouses) {
       await prisma.inventory.create({
-        data: { productId: p.id, warehouse: w, qty: 500 + Math.floor(Math.random() * 1500) },
+        data: { productId: p.id, warehouse: w, qty: 500 + Math.floor(Math.random() * 1500), reserved: 0 },
       })
     }
   }

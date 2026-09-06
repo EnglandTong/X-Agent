@@ -1,0 +1,52 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "创建出货单",
+  "x-verb": "delivery.create",
+  "x-description": "从已确认订单生成出货单（草稿）。",
+  "x-risk": "write",
+  "x-requires-confirm": true,
+  "properties": {
+    "orderNo": {
+      "type": "string",
+      "title": "订单号",
+      "x-component": "Input",
+      "x-decorator": "FormItem",
+      "x-validator": [{ "required": true, "message": "请填写订单号" }],
+      "x-index": 10,
+      "x-agent": {
+        "extract": "order_no",
+        "resolution": "order_lookup",
+        "askIfMissing": true,
+        "examples": ["给1002做出货单", "SO-2026-1002出货"]
+      }
+    },
+    "warehouseId": {
+      "type": "string",
+      "title": "出货仓库",
+      "enum": ["华东仓", "华南仓", "华北仓"],
+      "x-component": "Select",
+      "x-decorator": "FormItem",
+      "x-index": 20,
+      "x-agent": {
+        "extract": "warehouse",
+        "resolution": "enum",
+        "askIfMissing": false,
+        "examples": ["华东仓", "华南仓"]
+      }
+    },
+    "remark": {
+      "type": "string",
+      "title": "备注",
+      "x-component": "Input",
+      "x-decorator": "FormItem",
+      "x-index": 30,
+      "x-agent": {
+        "extract": "remark",
+        "resolution": "passthrough",
+        "askIfMissing": false
+      }
+    }
+  },
+  "required": ["orderNo"]
+}

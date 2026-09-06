@@ -109,7 +109,7 @@ async function fuzzyEntity(
   raw: string
 ): Promise<Resolved<string>> {
   const q = norm(raw)
-  if (!q) return fail('输入为空')
+  if (!q) return fail('输入为空') as Resolved<string>
 
   const scored: MatchCandidate[] = []
 
@@ -146,7 +146,7 @@ async function fuzzyEntity(
   }
 
   if (scored.length === 0) {
-    return fail(`没有找到匹配的${kind === 'customer' ? '客户' : '产品'}："${raw}"`)
+    return fail(`没有找到匹配的${kind === 'customer' ? '客户' : '产品'}："${raw}"`) as Resolved<string>
   }
 
   scored.sort((a, b) => b.score - a.score)
@@ -154,7 +154,7 @@ async function fuzzyEntity(
 
   // 歧义判定：次优解与最优解分差过小 → 必须人工决策
   if (scored.length > 1 && top.score - scored[1].score < 0.08) {
-    return fail(`"${raw}" 匹配到多个${kind === 'customer' ? '客户' : '产品'}，请选择`, scored)
+    return fail(`"${raw}" 匹配到多个${kind === 'customer' ? '客户' : '产品'}，请选择`, scored) as Resolved<string>
   }
 
   return ok(
@@ -290,7 +290,7 @@ export function parseDate(input: string, today = new Date()): string | null {
 // ---------------------------------------------------------------- 状态别名
 
 const STATUS_ALIASES: Record<string, string> = {
-  DRAFT: 'DRAFT', 草稿: 'DRAFT', 未确认: 'DRAFT', 待确认: 'DRAFT', 新建: 'DRAFT',
+  DRAFT: 'DRAFT', 草稿: 'DRAFT', 未确认: 'DRAFT', 待确认: 'DRAFT', 还没确认: 'DRAFT', 新建: 'DRAFT',
   CONFIRMED: 'CONFIRMED', 已确认: 'CONFIRMED', 确认: 'CONFIRMED', 已下单: 'CONFIRMED',
   SHIPPED: 'SHIPPED', 已出货: 'SHIPPED', 已发货: 'SHIPPED', 出货: 'SHIPPED',
   CANCELLED: 'CANCELLED', 已取消: 'CANCELLED', 取消: 'CANCELLED', 作废: 'CANCELLED',

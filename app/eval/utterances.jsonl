@@ -1,0 +1,50 @@
+{"id":"c01","utterance":"给张三来120个A-100，下周三要","verb":"order.create","slots":{"customer":"张三","product":"A-100","quantity":"120","delivery_date":"下周三"}}
+{"id":"c02","utterance":"给张三订一百二十个A-100","verb":"order.create","slots":{"customer":"张三","product":"A-100","quantity":"一百二十"}}
+{"id":"c03","utterance":"李四要200个B-200，华南仓发货","verb":"order.create","slots":{"customer":"李四","product":"B-200","quantity":"200","warehouse":"华南仓"}}
+{"id":"c04","utterance":"王五要C-300 20个","verb":"order.create","slots":{"customer":"王五","product":"C-300","quantity":"20"}}
+{"id":"c05","utterance":"给张来50个B-200","verb":"order.create","slots":{"customer":"张","product":"B-200","quantity":"50"}}
+{"id":"c06","utterance":"帮我开一张单，客户张三，A-100，80个，下周五交","verb":"order.create","slots":{"customer":"张三","product":"A-100","quantity":"80","delivery_date":"下周五"}}
+{"id":"c07","utterance":"张三订A一百，数量三百","verb":"order.create","slots":{"customer":"张三","product":"A一百","quantity":"三百"}}
+{"id":"c08","utterance":"给李四来五十个标准件B型","verb":"order.create","slots":{"customer":"李四","product":"标准件B型","quantity":"五十"}}
+{"id":"c09","utterance":"张三要A-100，按老价格，明天要","verb":"order.create","slots":{"customer":"张三","product":"A-100","delivery_date":"明天","unit_price":"按老价格"}}
+{"id":"c10","utterance":"给C001下单A-100一百个","verb":"order.create","slots":{"customer":"C001","product":"A-100","quantity":"一百"}}
+{"id":"c11","utterance":"王五华北仓要30个C-300","verb":"order.create","slots":{"customer":"王五","product":"C-300","quantity":"30","warehouse":"华北仓"}}
+{"id":"c12","utterance":"给张三来A-100","verb":"order.create","slots":{"customer":"张三","product":"A-100"}}
+{"id":"c13","utterance":"录个单：李四 B-200 一百件 下周一","verb":"order.create","slots":{"customer":"李四","product":"B-200","quantity":"一百","delivery_date":"下周一"}}
+{"id":"c14","utterance":"张伟要80个A-100，华南仓","verb":"order.create","slots":{"customer":"张伟","product":"A-100","quantity":"80","warehouse":"华南仓"}}
+{"id":"c15","utterance":"给张三订两百个C-300，备注加急","verb":"order.create","slots":{"customer":"张三","product":"C-300","quantity":"两百","remark":"加急"}}
+{"id":"q01","utterance":"查一下张三最近订单","verb":"order.query","slots":{"customer":"张三"}}
+{"id":"q02","utterance":"看看李四已确认的单","verb":"order.query","slots":{"customer":"李四","status":"已确认"}}
+{"id":"q03","utterance":"有没有SO-2026-1001这张单","verb":"order.query","slots":{"keyword":"SO-2026-1001"}}
+{"id":"q04","utterance":"查一下已出货的订单","verb":"order.query","slots":{"status":"已出货"}}
+{"id":"q05","utterance":"王五最近五条订单","verb":"order.query","slots":{"customer":"王五","limit":"五"}}
+{"id":"q06","utterance":"搜一下草稿单","verb":"order.query","slots":{"status":"草稿"}}
+{"id":"q07","utterance":"张三的单子列表","verb":"order.query","slots":{"customer":"张三"}}
+{"id":"q08","utterance":"查1002那单","verb":"order.query","slots":{"keyword":"1002"}}
+{"id":"f01","utterance":"确认SO-2026-1004","verb":"order.confirm","slots":{"order_no":"SO-2026-1004"}}
+{"id":"f02","utterance":"把1004那单确认了","verb":"order.confirm","slots":{"order_no":"1004"}}
+{"id":"f03","utterance":"确认订单SO-2026-1003","verb":"order.confirm","slots":{"order_no":"SO-2026-1003"}}
+{"id":"x01","utterance":"把SO-2026-1002改成150个","verb":"order.create","slots":{"origin_no":"SO-2026-1002","quantity":"150"}}
+{"id":"x02","utterance":"变更SO-2026-1002，数量改成200","verb":"order.create","slots":{"origin_no":"SO-2026-1002","quantity":"200"}}
+{"id":"x03","utterance":"对1002开变更单，还是A-100，数量一百八十","verb":"order.create","slots":{"origin_no":"1002","product":"A-100","quantity":"一百八十"}}
+{"id":"c16","utterance":"给李四来120个A-100，下周三要，华东仓","verb":"order.create","slots":{"customer":"李四","product":"A-100","quantity":"120","delivery_date":"下周三","warehouse":"华东仓"}}
+{"id":"c17","utterance":"张三要五十个B-200明天交","verb":"order.create","slots":{"customer":"张三","product":"B-200","quantity":"五十","delivery_date":"明天"}}
+{"id":"c18","utterance":"给王五订A-100 四十个","verb":"order.create","slots":{"customer":"王五","product":"A-100","quantity":"四十"}}
+{"id":"c19","utterance":"客户张三，产品B-200，数量九十，交期下周四","verb":"order.create","slots":{"customer":"张三","product":"B-200","quantity":"九十","delivery_date":"下周四"}}
+{"id":"c20","utterance":"开单给李四 C-300 六十个 华南仓","verb":"order.create","slots":{"customer":"李四","product":"C-300","quantity":"六十","warehouse":"华南仓"}}
+{"id":"q09","utterance":"看看张伟的订单","verb":"order.query","slots":{"customer":"张伟"}}
+{"id":"q10","utterance":"查一下还没确认的","verb":"order.query","slots":{"status":"还没确认"}}
+{"id":"c21","utterance":"给张三来两百个A-100","verb":"order.create","slots":{"customer":"张三","product":"A-100","quantity":"两百"}}
+{"id":"c22","utterance":"李四订B-200 一百二十个 下周三","verb":"order.create","slots":{"customer":"李四","product":"B-200","quantity":"一百二十","delivery_date":"下周三"}}
+{"id":"f04","utterance":"确认一下SO-2026-1004这张草稿","verb":"order.confirm","slots":{"order_no":"SO-2026-1004"}}
+{"id":"c23","utterance":"给张总来100个A-100","verb":"order.create","slots":{"customer":"张总","product":"A-100","quantity":"100"}}
+{"id":"n01","utterance":"取消SO-2026-1004，原因客户不要了","verb":"order.cancel","slots":{"order_no":"SO-2026-1004","reason":"客户不要了"}}
+{"id":"n02","utterance":"给SO-2026-1002做出货单","verb":"delivery.create","slots":{"order_no":"SO-2026-1002"}}
+{"id":"n03","utterance":"确认出货单DN-2026-1001","verb":"delivery.confirm","slots":{"delivery_no":"DN-2026-1001"}}
+{"id":"n04","utterance":"查一下1002的出货","verb":"delivery.query","slots":{"order_no":"1002"}}
+{"id":"n05","utterance":"查A-100库存","verb":"inventory.query","slots":{"product":"A-100"}}
+{"id":"n06","utterance":"预留华东仓A-100一百个","verb":"inventory.reserve","slots":{"warehouse":"华东仓","product":"A-100","quantity":"一百"}}
+{"id":"n07","utterance":"释放华东仓A-100预留五十个","verb":"inventory.release","slots":{"warehouse":"华东仓","product":"A-100","quantity":"五十"}}
+{"id":"n08","utterance":"查张三客户资料","verb":"customer.query","slots":{"customer":"张三"}}
+{"id":"n09","utterance":"查一下张三信用够不够五千","verb":"credit.check","slots":{"customer":"张三","amount":"五千"}}
+{"id":"n10","utterance":"看看李四额度","verb":"customer.query","slots":{"customer":"李四"}}

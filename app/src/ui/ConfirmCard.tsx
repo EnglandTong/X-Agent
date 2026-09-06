@@ -15,6 +15,8 @@ interface Props {
   question?: string
   /** 非空表示这是从 #N 修订而来的新格 */
   revisesSeq?: number
+  /** 覆盖默认提交文案（变更单 / 修订） */
+  submitLabel?: string
   submitting: boolean
   onSubmit: (values: Record<string, unknown>) => void
   onCancel: () => void
@@ -202,7 +204,7 @@ export function ConfirmCard({
 
       {/* ↓↓↓ 地基验证点：这一行下面是零手写表单代码，全部由 JSON Schema 渲染 */}
       <FormProvider form={form}>
-        <FormLayout layout="vertical" size="middle" colon={false}>
+        <FormLayout layout="vertical" size="large" colon={false}>
           <SchemaField schema={formSchema} />
         </FormLayout>
       </FormProvider>

@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "出货查询",
+  "x-verb": "delivery.query",
+  "x-description": "查询出货记录。",
+  "x-risk": "read",
+  "x-requires-confirm": false,
+  "properties": {
+    "orderNo": {
+      "type": "string",
+      "title": "订单号",
+      "x-component": "Input",
+      "x-decorator": "FormItem",
+      "x-index": 10,
+      "x-agent": {
+        "extract": "order_no",
+        "resolution": "order_lookup",
+        "askIfMissing": false,
+        "examples": ["查1002的出货"]
+      }
+    },
+    "keyword": {
+      "type": "string",
+      "title": "出货单号关键字",
+      "x-component": "Input",
+      "x-decorator": "FormItem",
+      "x-index": 20,
+      "x-agent": {
+        "extract": "keyword",
+        "resolution": "passthrough",
+        "askIfMissing": false
+      }
+    },
+    "limit": {
+      "type": "number",
+      "title": "返回条数",
+      "default": 10,
+      "x-component": "NumberPicker",
+      "x-decorator": "FormItem",
+      "x-index": 30,
+      "x-agent": {
+        "extract": "limit",
+        "resolution": "number_normalize",
+        "askIfMissing": false
+      }
+    }
+  },
+  "required": []
+}

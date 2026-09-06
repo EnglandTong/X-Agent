@@ -1,0 +1,4 @@
+{"utterance":"给李四来五十个标准件B型","expected":{"verb":"order.create","slots":{"customer":"李四","product":"标准件B型","quantity":"五十"}},"actual":{"rules":{"verb":"order.create","slots":{"customer":"李四","product":"B-200","quantity":"五十"}},"llm":null},"engine":"rules","tag":"C"}
+{"utterance":"给C001下单A-100一百个","expected":{"verb":"order.create","slots":{"customer":"C001","product":"A-100","quantity":"一百"}},"actual":{"rules":{"verb":"order.create","slots":{"customer":"C001","product":"C-001","quantity":"一百"}},"llm":null},"engine":"rules","tag":"C"}
+{"utterance":"查一下已出货的订单","expected":{"verb":"order.query","slots":{"status":"已出货"}},"actual":{"rules":{"verb":"delivery.query","slots":{}},"llm":null},"engine":"rules","tag":"C"}
+{"utterance":"王五最近五条订单","expected":{"verb":"order.query","slots":{"customer":"王五","limit":"五"}},"actual":{"rules":{"verb":"order.create","slots":{"customer":"王五","quantity":"五"}},"llm":null},"engine":"rules","tag":"C"}

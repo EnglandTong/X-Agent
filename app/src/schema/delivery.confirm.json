@@ -1,0 +1,26 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "确认出货",
+  "x-verb": "delivery.confirm",
+  "x-description": "确认出货单：扣减库存，并将关联订单标为已出货。",
+  "x-risk": "write",
+  "x-requires-confirm": true,
+  "properties": {
+    "deliveryNo": {
+      "type": "string",
+      "title": "出货单号",
+      "x-component": "Input",
+      "x-decorator": "FormItem",
+      "x-validator": [{ "required": true, "message": "请填写出货单号" }],
+      "x-index": 10,
+      "x-agent": {
+        "extract": "delivery_no",
+        "resolution": "passthrough",
+        "askIfMissing": true,
+        "examples": ["确认DN-2026-1001", "出货单1001确认"]
+      }
+    }
+  },
+  "required": ["deliveryNo"]
+}

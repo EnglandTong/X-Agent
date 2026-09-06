@@ -9,16 +9,16 @@
 | 1 | `order.query` | read | ✅ 已实现 | 按客户/状态/单号查询 |
 | 2 | `order.create` | write | ✅ 已实现 | 含修订（草稿）与变更（另开新单）两种模式 |
 | 3 | `order.confirm` | write | ✅ 已实现 | DRAFT → CONFIRMED |
-| 4 | `order.cancel` | write | ⬜ 待做 | 取消订单，需填取消原因 |
-| 5 | `delivery.create` | write | ⬜ 待做 | 从已确认订单生成出货单 |
-| 6 | `delivery.confirm` | write | ⬜ 待做 | 出货确认，扣减库存 |
-| 7 | `delivery.query` | read | ⬜ 待做 | 查询出货记录 |
-| 8 | `inventory.query` | read | ⬜ 待做 | 查库存（按产品/仓库） |
-| 9 | `inventory.reserve` | write | ⬜ 待做 | 预留库存 |
-| 10 | `inventory.release` | write | ⬜ 待做 | 释放预留 |
-| 11 | `customer.query` | read | ⬜ 待做 | 客户与信用额度查询 |
-| 12 | `credit.check` | read | ⬜ 待做 | 单笔信用检查（也可作为 create 的 precheck） |
-| — | `price.query` | read | 💡 备选 | 价格查询（历史成交价 / 牌价） |
+| 4 | `order.cancel` | write | ✅ 已实现 | 取消原因必填；SHIPPED 拒绝 |
+| 5 | `delivery.create` | write | ✅ 已实现 | 从 CONFIRMED 订单生成出货草稿 |
+| 6 | `delivery.confirm` | write | ✅ 已实现 | 扣库存 + 订单 SHIPPED |
+| 7 | `delivery.query` | read | ✅ 已实现 | 查出货记录 |
+| 8 | `inventory.query` | read | ✅ 已实现 | 按产品/仓库 |
+| 9 | `inventory.reserve` | write | ✅ 已实现 | Inventory.reserved |
+| 10 | `inventory.release` | write | ✅ 已实现 | 释放预留 |
+| 11 | `customer.query` | read | ✅ 已实现 | 客户与信用额度 |
+| 12 | `credit.check` | read | ✅ 已实现 | 单笔信用检查 |
+| — | `price.query` | read | 💡 备选 | 未做（计划明确不做） |
 
 **加一个动词的标准动作**：
 1. 写 `src/schema/<verb>.json`（含 `x-agent` 协议）
@@ -33,13 +33,14 @@
 | P | 事项 | 验收标准 | 依赖 |
 |---|---|---|---|
 | **P0** | Owner 在设置面板填 Key 并测试通过 | 返回 `连通 · <model> · <ms>ms` | Owner 提供 Key |
-| **P0** | 建评测集（30-50 条样本话术 + 期望抽取） | 文件化，可复跑 | — |
-| **P0** | 跑「模型 vs 规则」对比，出准确率表 | 每个槽位一张表 | 上两项 |
-| **P1** | 错例落库（原话 / 期望 / 实际 / 引擎） | 可导出的微调数据集 | P0 |
-| **P1** | 接入 Pi SDK 做 Agent 循环（禁用内置文件/shell 工具） | 输入输出契约不变 | — |
-| **P1** | 补 `order.cancel` + `delivery.*` 三件套 | 4 个动词可用 | — |
-| **P2** | 语音输入 | 复用 interpret 链路 | — |
-| **P2** | 阶段结束：提交 + push；重打 zip/bundle 放网盘（包不进 Git） | 见 `07_OPS.md` | Owner |
+| **P0** | 建评测集（30-50 条样本话术 + 期望抽取） | ✅ `app/eval/utterances.jsonl`（50 条） | — |
+| **P0** | 跑「模型 vs 规则」对比，出准确率表 | ✅ 规则基线已出；模型待 Key | Key |
+| **P1** | 错例落库（原话 / 期望 / 实际 / 引擎） | ✅ `app/eval/failures.jsonl` | P0 |
+| **P1** | 接入 Pi 风格 Agent 循环（禁用文件/shell 工具） | ✅ `piAgent.ts`（契约同 interpret） | — |
+| **P1** | 补 `order.cancel` + `delivery.*` | ✅ | — |
+| **P1** | 补 inventory / customer / credit | ✅ 满 12 动词 | — |
+| **P2** | 语音输入 | ✅ Web Speech → interpret | — |
+| **P2** | 阶段结束：提交 + push；重打 zip/bundle | 本轮收口 | Owner |
 | **P3** | 换 PostgreSQL | 改 provider + url | — |
 
 ---

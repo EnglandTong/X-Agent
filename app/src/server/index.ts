@@ -15,7 +15,7 @@
 import Fastify from 'fastify'
 import fastifyStatic from '@fastify/static'
 import { PrismaClient } from '@prisma/client'
-import { readFileSync, existsSync } from 'node:fs'
+import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -54,15 +54,12 @@ type RawSchema = Record<string, any>
 const rawSchemas = new Map<string, RawSchema>()
 const tools = new Map<string, ReturnType<typeof compile>>()
 
-for (const verb of ['order.query', 'order.create', 'order.confirm']) {
-  const file = join(SCHEMA_DIR, `${verb}.json`)
-  if (!existsSync(file)) {
-    console.warn(`⚠️  缺少 Schema：${file}`)
-    continue
-  }
+for (const fileName of readdirSync(SCHEMA_DIR).filter((f) => f.endsWith('.json'))) {
+  const file = join(SCHEMA_DIR, fileName)
   const raw = JSON.parse(readFileSync(file, 'utf-8'))
+  const verb = raw['x-verb'] ?? fileName.replace(/\.json$/, '')
   rawSchemas.set(verb, raw)
-  tools.set(verb, compile(raw))
+  tools.set(verb, compile(raw as any))
 }
 
 /**
@@ -79,11 +76,11 @@ async function hydrateEnums() {
   const warehouses = rows.map((r) => r.warehouse).sort()
   if (!warehouses.length) return
 
-  const create = rawSchemas.get('order.create')
-  if (create?.properties?.warehouseId) {
-    create.properties.warehouseId.enum = warehouses
-    // 编译产物也要同步，否则消解器拿到的还是旧列表
-    tools.set('order.create', compile(create))
+  for (const [verb, raw] of rawSchemas) {
+    if (raw?.properties?.warehouseId) {
+      raw.properties.warehouseId.enum = warehouses
+      tools.set(verb, compile(raw as any))
+    }
   }
   console.log(`🏭 仓库枚举已同步自数据库：${warehouses.join(' / ')}`)
 }
@@ -146,7 +143,7 @@ app.get('/api/verbs', async () =>
   listVerbs().map((v) => ({
     name: v.name,
     risk: v.risk,
-    ...(rawSchemas.get(v.name)?.title ? { title: rawSchemas.get(v.name).title } : {}),
+    ...(rawSchemas.get(v.name)?.title ? { title: rawSchemas.get(v.name)!.title } : {}),
     params: Object.keys(tools.get(v.name)?.parameters.properties ?? {}),
     required: tools.get(v.name)?.parameters.required ?? [],
   }))
@@ -357,7 +354,7 @@ if (existsSync(distDir)) {
 try {
   await app.listen({ port: PORT, host: HOST })
   console.log(`\n🚀 AGT-ERP 服务已启动：http://localhost:${PORT}`)
-  console.log(`   Agent 层：规则引擎（stub），W1 换成 Pi SDK + 本地 1.7B\n`)
+  console.log(`   动词 ${tools.size} 个 · Agent：${runtime.settings.provider}\n`)
 } catch (err) {
   console.error('启动失败：', err)
   process.exit(1)

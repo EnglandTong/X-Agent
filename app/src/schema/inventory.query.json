@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "库存查询",
+  "x-verb": "inventory.query",
+  "x-description": "按产品/仓库查询库存与预留。",
+  "x-risk": "read",
+  "x-requires-confirm": false,
+  "properties": {
+    "productId": {
+      "type": "string",
+      "title": "产品",
+      "x-component": "ProductSelect",
+      "x-decorator": "FormItem",
+      "x-index": 10,
+      "x-agent": {
+        "extract": "product",
+        "resolution": "fuzzy_product",
+        "askIfMissing": false,
+        "examples": ["A-100库存", "查B-200"]
+      }
+    },
+    "warehouseId": {
+      "type": "string",
+      "title": "仓库",
+      "enum": ["华东仓", "华南仓", "华北仓"],
+      "x-component": "Select",
+      "x-decorator": "FormItem",
+      "x-index": 20,
+      "x-agent": {
+        "extract": "warehouse",
+        "resolution": "enum",
+        "askIfMissing": false,
+        "examples": ["华东仓"]
+      }
+    }
+  },
+  "required": []
+}

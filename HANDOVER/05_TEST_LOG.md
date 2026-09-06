@@ -30,11 +30,15 @@
 
 | 项 | 为什么没验 | 怎么验 |
 |---|---|---|
-| **真实模型准确率** | 还没填 Key | 填 Key 后跑评测集（见 `06_ROADMAP.md` P0） |
-| 语音输入 | 未接入 | 复用同一条 interpret 链路即可 |
+| **真实模型准确率** | Owner 尚未在设置面板填 Key | 填 Key 后 `cd app && npm run eval`（`--engine=both`） |
 | 并发 / 多用户 | PoC 单会话 | 压测 |
-| PostgreSQL | 用的 SQLite | 改 provider + url，模型无需改动 |
+| PostgreSQL | 用的 SQLite | 改 provider + url |
 | 长时间运行的内存泄漏 | 未测 | — |
+
+### 规则引擎基线（已跑，2026-09-06）
+
+见 [`app/eval/BASELINE.md`](../app/eval/BASELINE.md)：50 条样本 · 动词 **96.0%** · 槽位 **98.3%** · OK 46 / C 4。
+语音输入：UI 已接 Web Speech API → 同一条 interpret（需浏览器授权麦克风，未做自动化测）。
 
 ---
 

@@ -15,7 +15,7 @@ model Customer {
   id            String   @id @default(cuid())
   code          String   @unique
   name          String
-  level         String   @default("B")       // A | B | C
+  level         String   @default("B") // A | B | C
   lastWarehouse String   @default("华东仓")
   creditLimit   Float    @default(100000)
   creditUsed    Float    @default(0)
@@ -24,46 +24,48 @@ model Customer {
 }
 
 model Product {
-  id        String      @id @default(cuid())
-  model     String      @unique
-  name      String
-  price     Float
-  unit      String      @default("个")
-  items     OrderItem[]
-  stocks    Inventory[]
+  id     String      @id @default(cuid())
+  model  String      @unique
+  name   String
+  price  Float
+  unit   String      @default("个")
+  items  OrderItem[]
+  stocks Inventory[]
+  deliveryItems DeliveryItem[]
 }
 
 model Inventory {
   id        String  @id @default(cuid())
   productId String
-  warehouse String                            // 华东仓 / 华南仓 / 华北仓
+  warehouse String // 华东仓 / 华南仓 / 华北仓
   qty       Int     @default(0)
+  /// 预留数量（PoC：直接挂在库存行上）
+  reserved  Int     @default(0)
   product   Product @relation(fields: [productId], references: [id])
 
   @@unique([productId, warehouse])
 }
 
 model Order {
-  id           String      @id @default(cuid())
-  no           String      @unique
-  customerId   String
-  warehouse    String?
-  /// DRAFT | CONFIRMED | SHIPPED | CANCELLED | SUPERSEDED（被变更单取代）
-  status       String      @default("DRAFT")
-  /// 变更自哪张单 —— 业务关键字段，这是串联两单的关键词
-  originNo     String?
-  /// 被哪张新单取代
+  id             String      @id @default(cuid())
+  no             String      @unique
+  customerId     String
+  warehouse      String?
+  /// DRAFT | CONFIRMED | SHIPPED | CANCELLED | SUPERSEDED
+  status         String      @default("DRAFT")
+  originNo       String?
   supersededByNo String?
-  /// 变更链根单号：同一条链上所有单共享，用于整链追溯
-  chainId      String?
-  deliveryDate DateTime?
-  currency     String      @default("CNY")
-  totalAmount  Float       @default(0)
-  remark       String?
-  createdBy    String      @default("owner")
-  createdAt    DateTime    @default(now())
-  customer     Customer    @relation(fields: [customerId], references: [id])
-  items        OrderItem[]
+  chainId        String?
+  deliveryDate   DateTime?
+  currency       String      @default("CNY")
+  totalAmount    Float       @default(0)
+  remark         String?
+  cancelReason   String?
+  createdBy      String      @default("owner")
+  createdAt      DateTime    @default(now())
+  customer       Customer    @relation(fields: [customerId], references: [id])
+  items          OrderItem[]
+  deliveries     Delivery[]
 }
 
 model OrderItem {
@@ -77,28 +79,44 @@ model OrderItem {
   product   Product @relation(fields: [productId], references: [id])
 }
 
+model Delivery {
+  id        String         @id @default(cuid())
+  no        String         @unique
+  orderId   String
+  warehouse String?
+  /// DRAFT | CONFIRMED
+  status    String         @default("DRAFT")
+  remark    String?
+  createdBy String         @default("owner")
+  createdAt DateTime       @default(now())
+  order     Order          @relation(fields: [orderId], references: [id])
+  items     DeliveryItem[]
+}
+
+model DeliveryItem {
+  id         String   @id @default(cuid())
+  deliveryId String
+  productId  String
+  qty        Int
+  delivery   Delivery @relation(fields: [deliveryId], references: [id], onDelete: Cascade)
+  product    Product  @relation(fields: [productId], references: [id])
+}
+
 /// 画布格子 —— 既是界面上的一格，也是一条不可变审计记录
-///
-/// 核心约定（Owner 决策）：**提交即冻结，永不原地修改。**
-/// 要改就新开一格，用 supersedesId 指向被替换的旧格，旧格标记 SUPERSEDED。
-/// 这样任何一次「改单」都能完整回溯：谁、原话、抽成了什么、落库了什么、替换了谁。
 model Panel {
   id            String   @id @default(cuid())
-  seq           Int                                   // 画布里的格子编号，1 起递增
-  sessionId     String   @default("default")          // 所属画布（PoC 单会话）
-  verb          String                                // order.create / order.query ...
-  title         String   @default("")                 // 格子标题，如「销售订单」
-  status        String   @default("SUBMITTED")        // SUBMITTED | SUPERSEDED
-  utterance     String?                               // 用户原话
-  slots         String?                               // 抽取 + 消解结果 JSON（含来源与置信度）
-  args          String?                               // 实际落库参数 JSON
-  result        String?                               // 执行结果 JSON（issues / message / data 摘要）
-  ok            Boolean  @default(true)               // 是否被业务规则拦截
-  /// 主关联键：把同一个业务对象的所有操作串成一条线，如 ORD:SO-2026-1012 / CUS:cmt...
+  seq           Int
+  sessionId     String   @default("default")
+  verb          String
+  title         String   @default("")
+  status        String   @default("SUBMITTED")
+  utterance     String?
+  slots         String?
+  args          String?
+  result        String?
+  ok            Boolean  @default(true)
   correlationId String?
-  /// 词典实体（关联关键词）JSON：[{type:"customer",value:"cmt...",label:"张三（C001）"}]
   entities      String?
-  /// 修订链：本格替换了哪一格。非空即表示这是一次「改单」
   supersedesId  String?
   actor         String   @default("owner")
   createdAt     DateTime @default(now())

@@ -42,6 +42,7 @@ npm run serve     # http://localhost:3001
 
 ## 当前状态
 
-W0 完成并验证（3 动词 / 画布 / 变更单链）· W1 模型接入层已就绪但**未填真实 Key**。
+**12/12 动词**已落地（订单→出货）。规则评测基线：动词 96% / 槽位 98.3%（50 条）。
+W1 模型接入与 Pi 风格循环已就绪，**真实 Key 未填** → 模型准确率待跑。
 
-活源：GitHub `main` + `HANDOVER/`。`agt-erp-src.zip` / `Agent_ERP.bundle` 只是网盘快照（gitignore），过期时以仓库为准。
+活源：GitHub `main` + `HANDOVER/`。zip/bundle 为网盘快照（gitignore）。

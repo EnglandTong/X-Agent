@@ -10,6 +10,8 @@
     "db:push": "prisma db push --skip-generate",
     "db:gen": "prisma generate",
     "db:seed": "tsx prisma/seed.ts",
+    "eval": "tsx scripts/eval-interpret.ts",
+    "eval:rules": "tsx scripts/eval-interpret.ts --engine=rules",
     "setup": "prisma generate && prisma db push --skip-generate && tsx prisma/seed.ts"
   },
   "dependencies": {

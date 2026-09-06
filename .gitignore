@@ -12,3 +12,6 @@ dist/
 Agent_ERP.bundle
 agt-erp-src.zip
 *.bundle
+
+# eval run artifacts (keep utterances + failures.jsonl committed)
+app/eval/results/

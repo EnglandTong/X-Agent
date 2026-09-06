@@ -2,9 +2,9 @@ import { Card, Table, Tag, Alert, Space, Empty, Typography } from 'antd'
 import type { VerbResult } from '../types'
 
 const ISSUE_META = {
-  warn: { color: 'warning' as const, text: '提示' },
-  confirm: { color: 'orange' as const, text: '需复核' },
-  block: { color: 'error' as const, text: '已拦截' },
+  warn: { alert: 'warning' as const, tag: 'warning' as const, text: '提示' },
+  confirm: { alert: 'warning' as const, tag: 'orange' as const, text: '需复核' },
+  block: { alert: 'error' as const, tag: 'error' as const, text: '已拦截' },
 }
 
 const STATUS_COLOR: Record<string, string> = {
@@ -48,11 +48,11 @@ function Issues({ result }: { result: VerbResult }) {
       {result.issues.map((i, idx) => (
         <Alert
           key={idx}
-          type={ISSUE_META[i.level].color}
+          type={ISSUE_META[i.level].alert}
           showIcon
           message={
             <span style={{ fontSize: 13 }}>
-              <Tag color={ISSUE_META[i.level].color} style={{ fontSize: 11, marginInlineEnd: 6 }}>
+              <Tag color={ISSUE_META[i.level].tag} style={{ fontSize: 11, marginInlineEnd: 6 }}>
                 {ISSUE_META[i.level].text}
               </Tag>
               {i.message}

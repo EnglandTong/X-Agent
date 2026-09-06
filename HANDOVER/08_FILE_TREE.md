@@ -77,8 +77,7 @@
 
 ### A. 当前活源（GitHub `main`）
 
-整仓曾以「Initial commit」导入 GitHub；之后以 `main` 上的新提交为准。
-早期沙箱线性历史**不再是日常开发基线**。
+以 `main` 上最新提交为准。本轮已落地：**12 动词**、评测集、Pi 风格循环、语音入口、Delivery 模型。
 
 ### B. 早期沙箱历史（仅存于 `Agent_ERP.bundle`，作考古）
 

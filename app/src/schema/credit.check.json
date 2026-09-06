@@ -1,0 +1,40 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "信用检查",
+  "x-verb": "credit.check",
+  "x-description": "检查单笔金额是否超出客户可用信用额度。",
+  "x-risk": "read",
+  "x-requires-confirm": false,
+  "properties": {
+    "customerId": {
+      "type": "string",
+      "title": "客户",
+      "x-component": "CustomerSelect",
+      "x-decorator": "FormItem",
+      "x-validator": [{ "required": true }],
+      "x-index": 10,
+      "x-agent": {
+        "extract": "customer",
+        "resolution": "fuzzy_customer",
+        "askIfMissing": true
+      }
+    },
+    "amount": {
+      "type": "number",
+      "title": "拟下单金额",
+      "minimum": 0,
+      "x-component": "NumberPicker",
+      "x-decorator": "FormItem",
+      "x-validator": [{ "required": true }],
+      "x-index": 20,
+      "x-agent": {
+        "extract": "amount",
+        "resolution": "number_normalize",
+        "askIfMissing": true,
+        "examples": ["查一下能不能下五千", "信用够不够一万二"]
+      }
+    }
+  },
+  "required": ["customerId", "amount"]
+}

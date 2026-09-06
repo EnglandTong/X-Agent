@@ -1,0 +1,53 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "预留库存",
+  "x-verb": "inventory.reserve",
+  "x-description": "为产品在指定仓库预留数量（占用 available）。",
+  "x-risk": "write",
+  "x-requires-confirm": true,
+  "properties": {
+    "productId": {
+      "type": "string",
+      "title": "产品",
+      "x-component": "ProductSelect",
+      "x-decorator": "FormItem",
+      "x-validator": [{ "required": true }],
+      "x-index": 10,
+      "x-agent": {
+        "extract": "product",
+        "resolution": "fuzzy_product",
+        "askIfMissing": true
+      }
+    },
+    "warehouseId": {
+      "type": "string",
+      "title": "仓库",
+      "enum": ["华东仓", "华南仓", "华北仓"],
+      "x-component": "Select",
+      "x-decorator": "FormItem",
+      "x-validator": [{ "required": true }],
+      "x-index": 20,
+      "x-agent": {
+        "extract": "warehouse",
+        "resolution": "enum",
+        "askIfMissing": true
+      }
+    },
+    "qty": {
+      "type": "number",
+      "title": "预留数量",
+      "minimum": 1,
+      "x-component": "NumberPicker",
+      "x-decorator": "FormItem",
+      "x-validator": [{ "required": true }],
+      "x-index": 30,
+      "x-agent": {
+        "extract": "quantity",
+        "resolution": "number_normalize",
+        "askIfMissing": true
+      }
+    }
+  },
+  "required": ["productId", "warehouseId", "qty"]
+}

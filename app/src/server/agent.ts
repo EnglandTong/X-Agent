@@ -28,6 +28,7 @@
 import type { ToolSchema } from './compile'
 import { resolveSlot, type ResolveCtx, type Resolved } from './resolve'
 import { llmExtract } from './llm'
+import { piExtract } from './piAgent'
 import type { LlmSettings } from './settings'
 
 // ---------------------------------------------------------------- 类型
@@ -71,7 +72,7 @@ export interface Interpretation {
   /** 是否可以直接执行（只读且无缺失） */
   ready: boolean
   /** 这一格是规则引擎抽的，还是模型抽的 —— 出问题时第一眼要看的字段 */
-  engine: 'rules' | 'llm'
+  engine: 'rules' | 'llm' | 'pi'
   llm?: { ms: number; error?: string; raw?: string }
 }
 
@@ -86,37 +87,94 @@ const CREATE_SIGNALS = [
   '订', '下一单', '做个单', '帮我开', '录个', '来', '要', '订一',
 ]
 
+function pickAvailable(available: string[], preferred: string[], fallback: string) {
+  for (const v of preferred) {
+    if (available.includes(v)) return v
+  }
+  return available.includes(fallback) ? fallback : available[0] ?? fallback
+}
+
 function detectVerb(utterance: string, available: string[]): { verb: string; confidence: number } {
   const s = utterance.toLowerCase()
+
+  // --- 专用意图（优先于通用查/建）---
+  if (/取消/.test(s) && available.includes('order.cancel')) {
+    return { verb: 'order.cancel', confidence: 0.92 }
+  }
+  if (/(确认出货|出货确认|确认\s*DN|DN[-\s]?\d)/i.test(s) && available.includes('delivery.confirm')) {
+    return { verb: 'delivery.confirm', confidence: 0.9 }
+  }
+  if (/(做出货|开出货|生成出货|出货单)/.test(s) && !/确认出货|查/.test(s) && available.includes('delivery.create')) {
+    return { verb: 'delivery.create', confidence: 0.9 }
+  }
+  if (/(查出货|出货记录|出货单)/.test(s) && /查|看看|列表/.test(s) && available.includes('delivery.query')) {
+    return { verb: 'delivery.query', confidence: 0.88 }
+  }
+  if (/查.{0,8}出货|出货.{0,4}(查|看看)/.test(s) && available.includes('delivery.query')) {
+    return { verb: 'delivery.query', confidence: 0.86 }
+  }
+  if (/(释放.*预留|取消预留|放预留|预留.*释放)/.test(s) && available.includes('inventory.release')) {
+    return { verb: 'inventory.release', confidence: 0.9 }
+  }
+  if (/(预留)/.test(s) && !/释放|取消预留/.test(s) && available.includes('inventory.reserve')) {
+    return { verb: 'inventory.reserve', confidence: 0.88 }
+  }
+  if (/(库存)/.test(s) && available.includes('inventory.query')) {
+    return { verb: 'inventory.query', confidence: 0.88 }
+  }
+  if (/(信用|额度).*(查|看|检查|够不够)|查.*(信用|额度)/.test(s) && available.includes('credit.check')) {
+    return { verb: 'credit.check', confidence: 0.9 }
+  }
+  if (/(客户资料|查客户|客户.*额度|客户信息)/.test(s) && available.includes('customer.query')) {
+    return { verb: 'customer.query', confidence: 0.9 }
+  }
+  if (/查.{0,6}客户|看看.{0,4}额度/.test(s) && available.includes('customer.query')) {
+    return { verb: 'customer.query', confidence: 0.86 }
+  }
+  if (/确认/.test(s) && /(订单|SO|那单|这单|\d{3,5})/i.test(s) && available.includes('order.confirm')) {
+    return { verb: 'order.confirm', confidence: 0.9 }
+  }
+  if (/(变更|改成|开变更|改数量)/.test(s) && available.includes('order.create')) {
+    return { verb: 'order.create', confidence: 0.88 }
+  }
 
   const createHit = CREATE_SIGNALS.filter((w) => s.includes(w)).length
   const queryHit = QUERY_SIGNALS.filter((w) => s.includes(w)).length
 
-  // 出现数量 + 产品 → 基本可以断定是下单
   const hasQty = /(\d+|[一二两三四五六七八九十百千万]+)\s*(个|只|件|台|套|箱|支|条|pcs|PCS)/.test(s)
   const hasModel = /[A-Za-z]\s*-?\s*\d{3}/.test(s)
 
   if (createHit > 0 && queryHit === 0) {
-    return { verb: 'order.create', confidence: 0.9 }
+    return { verb: pickAvailable(available, ['order.create'], 'order.create'), confidence: 0.9 }
   }
   if (queryHit > 0 && createHit === 0) {
-    return { verb: 'order.query', confidence: 0.9 }
+    return { verb: pickAvailable(available, ['order.query'], 'order.query'), confidence: 0.9 }
   }
   if (createHit > 0 && queryHit > 0) {
-    // 两者都有信号：靠"有没有数量"裁决
     return hasQty
-      ? { verb: 'order.create', confidence: 0.65 }
-      : { verb: 'order.query', confidence: 0.65 }
+      ? { verb: pickAvailable(available, ['order.create'], 'order.create'), confidence: 0.65 }
+      : { verb: pickAvailable(available, ['order.query'], 'order.query'), confidence: 0.65 }
   }
   if (hasModel && hasQty) {
-    return { verb: 'order.create', confidence: 0.72 }
+    return { verb: pickAvailable(available, ['order.create'], 'order.create'), confidence: 0.72 }
+  }
+  // 「客户…产品…数量…」表格式口吻，即使没有「来/要」也当建单
+  if (
+    (/客户/.test(s) || dictishCustomer(s)) &&
+    (hasModel || /产品/.test(s)) &&
+    (/数量|交期/.test(s) || hasQty || /[零一二两三四五六七八九十百千]+\s*$/.test(s) || /数量\s*[零一二三四五六七八九十百千万\d]+/.test(s))
+  ) {
+    return { verb: pickAvailable(available, ['order.create'], 'order.create'), confidence: 0.7 }
   }
   if (hasModel || /订单/.test(s)) {
-    return { verb: 'order.query', confidence: 0.55 }
+    return { verb: pickAvailable(available, ['order.query'], 'order.query'), confidence: 0.55 }
   }
 
-  // 兜底：取第一个可用动词
   return { verb: available[0] ?? 'order.query', confidence: 0.3 }
+}
+
+function dictishCustomer(s: string) {
+  return /张三|张伟|李四|王五|C00\d/.test(s)
 }
 
 // ---------------------------------------------------------------- 槽位抽取（规则版）
@@ -159,7 +217,7 @@ function extractSlotsRules(
   // ---------- 客户 ----------
   // 1) 显式前缀："给张三…" / "客户是上海XX"
   const custMatch = utterance.match(
-    /(?:客户是?|给|为)\s*([^\s，,。、]{1,8}?)(?=[来下要订做开录\s，,。、]|$)/
+    /(?:客户是|客户[：:]|给|为)\s*([^\s，,。、]{1,8}?)(?=[来下要订做开录\s，,。、]|$)/
   )
   if (custMatch && !/^\d+$/.test(custMatch[1])) {
     slots.customer = custMatch[1]
@@ -195,7 +253,7 @@ function extractSlotsRules(
   )
   if (qtyMatch) slots.quantity = qtyMatch[1]
   else {
-    const bareQty = utterance.match(/(?:来|要|订|数量|下单)\s*(\d+(?:\.\d+)?|[零一二两三四五六七八九十百千万]+)/)
+    const bareQty = utterance.match(/(?:来|要|订|数量|下单)[是为:：]?\s*(\d+(?:\.\d+)?|[零一二两三四五六七八九十百千万]+)/)
     if (bareQty) slots.quantity = bareQty[1]
   }
 
@@ -220,20 +278,49 @@ function extractSlotsRules(
   if (whMatch) slots.warehouse = `${whMatch[1]}仓`
 
   // 状态
-  const statusMatch = utterance.match(/(草稿|未确认|待确认|已确认|已下单|已出货|已发货|已取消|已作废)/)
+  const statusMatch = utterance.match(/(草稿|未确认|待确认|还没确认|已确认|已下单|已出货|已发货|已取消|已作废)/)
   if (statusMatch) slots.status = statusMatch[1]
 
-  // 订单号
+  // 订单号 / 出货单号
   const noMatch = utterance.match(/(SO[-\s]?\d{4}[-\s]?\d{3,5})/i)
-  if (noMatch) slots.keyword = noMatch[1].replace(/\s/g, '-').toUpperCase()
+  if (noMatch) {
+    const no = noMatch[1].replace(/\s/g, '-').toUpperCase()
+    slots.keyword = no
+    slots.order_no = no
+  }
+  const confirmTail = utterance.match(/确认\s*(?:一下)?(?:订单)?\s*(SO[-\s]?\d{4}[-\s]?\d{3,5}|\d{3,5})/i)
+  if (confirmTail) {
+    slots.order_no = confirmTail[1].replace(/\s/g, '-').toUpperCase()
+  }
+  const dnMatch = utterance.match(/(DN[-\s]?\d{4}[-\s]?\d{3,5}|\bDN[-\s]?\d{3,5})/i)
+  if (dnMatch) slots.delivery_no = dnMatch[1].replace(/\s/g, '-').toUpperCase()
+
+  // 取消原因
+  const reasonMatch = utterance.match(/(?:原因|因为|由于)[是:：]?\s*([^，,。]{2,40})/)
+  if (reasonMatch) slots.reason = reasonMatch[1].trim()
+  else if (/取消/.test(utterance)) {
+    const after = utterance.match(/取消[^，,。]{0,20}(?:，|,|：|:)?\s*(.+)$/)
+    if (after && !/SO|DN|\d{4}/i.test(after[1])) slots.reason = after[1].trim()
+  }
+
+  // 信用金额
+  const amountMatch = utterance.match(/(?:金额|信用|额度|下)\s*(?:够不够|检查)?\s*([零一二两三四五六七八九十百千万\d]+(?:\.\d+)?)\s*(?:元|块)?/)
+  if (amountMatch) slots.amount = amountMatch[1]
+  else {
+    const amt2 = utterance.match(/([零一二两三四五六七八九十百千万\d]+(?:\.\d+)?)\s*(?:元|块钱?)/)
+    if (amt2 && /信用|额度/.test(utterance)) slots.amount = amt2[1]
+  }
 
   // 原单号 —— 变更场景的串联关键词
-  // 两种说法：完整单号（SO-2026-1007）/ 尾号片段（1007 那单）
   const originFull = utterance.match(/SO[-\s]?\d{4}[-\s]?\d{3,5}/i)
   const originTail = utterance.match(/(\d{3,5})\s*(?:那张单|那单|那张|这张单|这单|的单)/)
-  if (originFull) {
+  if (/变更|改成|开变更/.test(utterance) && originFull) {
     slots.origin_no = originFull[0].replace(/\s/g, '-').toUpperCase()
-  } else if (originTail) {
+  } else if (/变更|改成|开变更/.test(utterance) && originTail) {
+    slots.origin_no = originTail[1]
+  } else if (originFull && /改|变更/.test(utterance)) {
+    slots.origin_no = originFull[0].replace(/\s/g, '-').toUpperCase()
+  } else if (originTail && /改|变更/.test(utterance)) {
     slots.origin_no = originTail[1]
   }
 
@@ -288,27 +375,46 @@ export async function interpret(
   // --- 2. 槽位抽取：模型优先，规则兜底
   const ruleSlots = extractSlotsRules(utterance, dict)
   let rawSlots = ruleSlots
-  let engine: 'rules' | 'llm' = 'rules'
+  let engine: 'rules' | 'llm' | 'pi' = 'rules'
   let llmTrace: Interpretation['llm']
 
   if (llm && llm.provider === 'openai' && llm.apiKey) {
     try {
-      const r = await llmExtract(utterance, {
-        settings: llm,
-        tools,
-        schemas,
-        dict,
-        today: today ?? new Date(),
-      })
-      verb = r.verb
-      verbConfidence = r.confidence
-      // 互补而非二选一：模型漏抽的，用规则补上（规则对型号/数量的正则很稳）
-      rawSlots = { ...ruleSlots, ...r.slots }
-      engine = 'llm'
-      llmTrace = { ms: r.ms, raw: r.raw }
+      // Pi 风格循环（无文件/shell 工具）；失败则再试直连 llmExtract
+      let usedPi = false
+      try {
+        const r = await piExtract(utterance, {
+          settings: llm,
+          tools,
+          schemas,
+          dict,
+          today: today ?? new Date(),
+        })
+        verb = r.verb
+        verbConfidence = r.confidence
+        rawSlots = { ...ruleSlots, ...r.slots }
+        engine = 'pi'
+        llmTrace = { ms: r.ms, raw: r.raw }
+        usedPi = true
+      } catch {
+        usedPi = false
+      }
+      if (!usedPi) {
+        const r = await llmExtract(utterance, {
+          settings: llm,
+          tools,
+          schemas,
+          dict,
+          today: today ?? new Date(),
+        })
+        verb = r.verb
+        verbConfidence = r.confidence
+        rawSlots = { ...ruleSlots, ...r.slots }
+        engine = 'llm'
+        llmTrace = { ms: r.ms, raw: r.raw }
+      }
     } catch (e: any) {
       llmTrace = { ms: 0, error: String(e?.message ?? e) }
-      // 静默回落原则：模型挂了不能让业务停摆，但要把原因留下来
       console.warn(`⚠️  LLM 抽取失败，回落规则引擎：${e?.message ?? e}`)
     }
   }
@@ -444,9 +550,11 @@ async function inferSlot(
   schema: any,
   ctx: ResolveCtx
 ): Promise<{ value: unknown; label: string; note: string } | null> {
-  const field = Object.entries<any>(schema.properties ?? {}).find(
+  const fieldEntry = Object.entries<any>(schema.properties ?? {}).find(
     ([, d]) => (d['x-agent']?.extract ?? '') === slot
-  )?.[0]
+  )
+  const field = fieldEntry?.[0]
+  if (!field) return null
   const inferFrom = schema.properties?.[field]?.['x-agent']?.inferFrom
 
   if (!inferFrom) return null

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Input, Button, Tag, Space, Empty, Spin, Popconfirm, message } from 'antd'
-import { SendOutlined, ClearOutlined, SettingOutlined } from '@ant-design/icons'
+import { SendOutlined, ClearOutlined, SettingOutlined, AudioOutlined } from '@ant-design/icons'
 import { ConfirmCard } from './ConfirmCard'
 import { PanelCard } from './PanelCard'
 import { SettingsModal } from './SettingsModal'
@@ -46,6 +46,7 @@ export default function App() {
     model: '',
   })
   const canvasRef = useRef<HTMLDivElement>(null)
+  const [listening, setListening] = useState(false)
 
   const scrollDown = () =>
     setTimeout(() => {
@@ -69,6 +70,36 @@ export default function App() {
 
   /** 顶部上下文：取最近一格有业务对象的关联键 */
   const current = [...panels].reverse().find((p) => p.correlationId)
+
+  // ---------------------------------------------------------------- 语音输入（Web Speech API → 同一条 interpret）
+
+  function startVoice() {
+    const SR =
+      (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+    if (!SR) {
+      message.warning('当前浏览器不支持语音输入')
+      return
+    }
+    const rec = new SR()
+    rec.lang = 'zh-CN'
+    rec.interimResults = false
+    rec.maxAlternatives = 1
+    setListening(true)
+    rec.onresult = (ev: any) => {
+      const text = String(ev.results?.[0]?.[0]?.transcript ?? '').trim()
+      setListening(false)
+      if (text) {
+        setInput(text)
+        send(text)
+      }
+    }
+    rec.onerror = () => {
+      setListening(false)
+      message.error('语音识别失败')
+    }
+    rec.onend = () => setListening(false)
+    rec.start()
+  }
 
   // ---------------------------------------------------------------- 发送
 
@@ -408,9 +439,16 @@ export default function App() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onPressEnter={() => send(input)}
-            placeholder="说一句话，比如：给张三来120个A-100"
+            placeholder="说一句话，或点麦克风（同一条 interpret 链路）"
             disabled={busy}
             prefix={<span style={{ color: '#52c41a', fontWeight: 700 }}>›</span>}
+          />
+          <Button
+            icon={<AudioOutlined />}
+            loading={listening}
+            disabled={busy}
+            onClick={startVoice}
+            title="语音输入"
           />
           <Button type="primary" icon={<SendOutlined />} loading={busy} onClick={() => send(input)} />
         </Space.Compact>

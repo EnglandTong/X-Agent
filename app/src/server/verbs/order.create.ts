@@ -118,7 +118,9 @@ export const orderCreate: Verb = {
     //   A 变更单（originNo）  → 另开新单，原单冻结为 SUPERSEDED，两单靠业务关键字段互指
     //   B 原地修订（orderId） → 仅草稿可用，单号不变
     //   C 新建               → 普通新单
-    let order: Awaited<ReturnType<typeof db.order.create>>
+    let order: Awaited<ReturnType<typeof db.order.create>> & {
+      customer: { name: string }
+    }
     let mode: 'create' | 'revise' | 'change' = 'create'
     let originNo: string | null = null
     let chainId: string | null = null
