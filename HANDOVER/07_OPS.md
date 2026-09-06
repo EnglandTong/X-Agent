@@ -68,44 +68,69 @@ HOST=0.0.0.0
 
 ## 四、备份与交接流程（★ 每次阶段成果必做）
 
-```bash
-# 1. 提交
-cd /workspace/agt-erp
-git add -A && git commit -m "说明"
+### 事实源 vs 快照（防漂移）
 
-# 2. 导出完整历史（bundle，单文件）
-git bundle create /workspace/Agent_ERP.bundle --all
+| 东西 | 进 Git 吗 | 规则 |
+|---|---|---|
+| 源码 + `HANDOVER/` | ✅ 是 | **唯一活源**；改完就 `commit` + `push` |
+| `app/.env` / `.env.local` | ❌ 否 | 只留 `.env.example`；Key 永不进仓 |
+| `Agent_ERP.bundle` / `agt-erp-src.zip` | ❌ 否（已 gitignore） | 阶段结束**重打**后放网盘；包内数字与仓内不一致时，**以仓为准** |
 
-# 3. 打包源码（排除依赖与数据库）
-cd /workspace && rm -f agt-erp-src.zip
-zip -rq agt-erp-src.zip agt-erp \
-  -x "*/node_modules/*" "*/dist/*" "*.db" "*/.env.local"
+改完 `HANDOVER/` 却不重打包 → 网盘包过期，属预期；不要反过来用旧包「覆盖」仓库。
+
+### 命令（Windows PowerShell / 本地）
+
+```powershell
+# 0. 先确认没有密钥进暂存区
+git status
+git check-ignore -v app/.env app/.env.local
+
+# 1. 提交（只提交源码与档案）
+git add -A
+git status   # 确认没有 .env / *.db / node_modules / zip / bundle
+git commit -m "说明"
+git push
+
+# 2. 导出完整历史（bundle，单文件；放网盘，不进 Git）
+git bundle create Agent_ERP.bundle --all
+
+# 3. 打包源码快照（必须排除密钥与依赖）
+# 若仓库根目录名是 Agent_ERP：
+Remove-Item -Force agt-erp-src.zip -ErrorAction SilentlyContinue
+Compress-Archive -Path app,HANDOVER,README.md,SPEC.md,.gitignore -DestinationPath agt-erp-src.zip -Force
+# 注意：Compress-Archive 不会自动排除子目录里的敏感文件；
+# 打包前确认 app/.env 不存在或为空模板；Key 只在 .env.local。
 ```
 
-**Owner 侧**：把 `Agent_ERP.bundle` + `agt-erp-src.zip` 下载 → 放百度网盘 →
-本地需要时：
+更稳妥的 zip（bash / Git Bash，显式排除）：
 
 ```bash
-git clone Agent_ERP.bundle Agent_ERP   # 完整历史
+rm -f agt-erp-src.zip
+zip -rq agt-erp-src.zip . \
+  -x "./.git/*" "*/node_modules/*" "*/dist/*" "*.db" "*.db-journal" \
+     "*/.env" "*/.env.local" "./Agent_ERP.bundle" "./agt-erp-src.zip"
 ```
 
-### 建 GitHub 仓库（必须本地执行）
+**Owner 侧**：把 `Agent_ERP.bundle` + `agt-erp-src.zip` 放百度网盘。
+本地需要完整早期历史时：
 
 ```bash
-cd D:/Development
-git clone Agent_ERP.bundle Agent_ERP
-cd Agent_ERP
-cp app/.env.example app/.env
-gh repo create Agent_ERP --private --source=. --remote=origin --push
+git clone Agent_ERP.bundle Agent_ERP_from_bundle
+# 日常开发仍用 GitHub clone，不要用旧 bundle 覆盖 main
 ```
 
-没有 `gh` 就网页建空仓库（**别勾 README/LICENSE**），然后：
+### GitHub 仓库（已存在）
+
+远端：`https://github.com/EnglandTong/Agent_ERP.git` · 默认分支 `main`。
 
 ```bash
-git remote add origin https://github.com/<账号>/Agent_ERP.git
-git branch -M main
-git push -u origin main
+cd D:/Development/Agent_ERP
+git pull
+# 首次本地配置数据库：
+copy app\.env.example app\.env
 ```
+
+若要新建其它远程（参考）：网页建空仓库（**别勾 README/LICENSE**），再 `git remote add` + `git push -u origin main`。
 
 ---
 

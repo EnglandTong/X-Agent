@@ -104,17 +104,19 @@ POST /api/interpret     → engine:"rules"（已回落），业务正常
 
 | Owner 说 | 结论 |
 |---|---|
-| 「建 GitHub 仓库 Agent_ERP」 | ❌ **沙箱推送失败**：DNS 劫持到 198.18.0.23，SSL 握手失败；设备登录也走不通 |
-| 「我有百度网盘，还是放线下吧」 | 交付方式改为：**本地保存为主** |
-| 「把整个系统、测试过的、所有结构、讨论过的细节，从整体思路导出给下一个 AI」 | 生成本 `HANDOVER/` 档案 |
-| 「后续可能让你连到那个 G，从云上仓库取档案」 | 档案已设计为**仓库内自包含**，新会话直接读即可 |
+| 「建 GitHub 仓库 Agent_ERP」 | 沙箱当时推送失败；**后来本地已建** `EnglandTong/Agent_ERP`（`main`） |
+| 「我有百度网盘，还是放线下吧」 | 交付方式：**GitHub 活源 + 网盘放 zip/bundle 快照** |
+| 「把整个系统…导出给下一个 AI」 | 生成本 `HANDOVER/` 档案（11 份；行数以仓内为准） |
+| 「后续可能让你连到那个 G，从云上仓库取档案」 | 档案在仓库内；新会话读 `00 → 04` 即可 |
+| （核对）「档案跟交付说明是否一致」 | 内容大体一致；行数/Git 快照/zip 含 `.env` 曾漂移 → **v1.1 对齐** |
 
-**替代交付**：`git bundle`（完整 4 次提交历史）+ `zip`（源码快照）。
-Owner 本地 `git clone Agent_ERP.bundle Agent_ERP` 即可还原，再 `gh repo create` 推送。
+**替代交付**：`git bundle`（早期 5 次提交考古）+ `zip`（源码快照）。
+二者**不进 Git**，阶段结束重打；与仓冲突时以 GitHub `main` 为准。
 
 **顺手修的问题**：
-- `app/.env` 之前被误纳入版本跟踪 → `git rm --cached`，新增 `.env.example`
-- 验证：clone 出来的仓库无 `.env`、无 `.db`、无 node_modules
+- `app/.env` 曾误纳入版本跟踪 → 停跟 + `.gitignore` + `.env.example`
+- zip 打包曾漏排除 `.env`（无 Key，仅 DATABASE_URL）→ 打包脚本改为显式排除
+- 验证标准：**Git 跟踪列表**无 `.env` / `.db` / `node_modules`；bundle clone 同样干净
 
 ---
 

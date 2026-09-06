@@ -75,9 +75,20 @@
 
 ## 六、Git 历史
 
+### A. 当前活源（GitHub `main`）
+
+整仓曾以「Initial commit」导入 GitHub；之后以 `main` 上的新提交为准。
+早期沙箱线性历史**不再是日常开发基线**。
+
+### B. 早期沙箱历史（仅存于 `Agent_ERP.bundle`，作考古）
+
 | 提交 | 说明 |
 |---|---|
 | `f00e8d7` | W0：画布模式 + 不可变格子 + 变更单链（3 动词） |
 | `98caa0e` | gitignore：排除 `.env` |
 | `6d4761e` | W1：设置面板 + 模型接入层（含连通性诊断与失败回落） |
 | `84db305` | chore：停止跟踪 `.env`，改用 `.env.example` |
+| `ba74a22` | docs：导出完整交接档案 `HANDOVER/`（11 份） |
+
+> 接手 AI：**不要**把上表 5 笔当成当前 `git log` 必须出现的提交；
+> 核对现状用 `git log` + `00_START_HERE` 快照，考古才打开 bundle。

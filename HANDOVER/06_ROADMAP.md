@@ -39,7 +39,7 @@
 | **P1** | 接入 Pi SDK 做 Agent 循环（禁用内置文件/shell 工具） | 输入输出契约不变 | — |
 | **P1** | 补 `order.cancel` + `delivery.*` 三件套 | 4 个动词可用 | — |
 | **P2** | 语音输入 | 复用 interpret 链路 | — |
-| **P2** | 建 GitHub 远程仓库并推送 | Owner 本地执行 | Owner |
+| **P2** | 阶段结束：提交 + push；重打 zip/bundle 放网盘（包不进 Git） | 见 `07_OPS.md` | Owner |
 | **P3** | 换 PostgreSQL | 改 provider + url | — |
 
 ---

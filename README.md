@@ -43,3 +43,5 @@ npm run serve     # http://localhost:3001
 ## 当前状态
 
 W0 完成并验证（3 动词 / 画布 / 变更单链）· W1 模型接入层已就绪但**未填真实 Key**。
+
+活源：GitHub `main` + `HANDOVER/`。`agt-erp-src.zip` / `Agent_ERP.bundle` 只是网盘快照（gitignore），过期时以仓库为准。
