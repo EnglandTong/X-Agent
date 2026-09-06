@@ -1,0 +1,82 @@
+{
+  "name": "order.create",
+  "description": "创建销售订单。写入前会自动执行信用检查与库存可用性检查。",
+  "risk": "write",
+  "requiresConfirm": true,
+  "parameters": {
+    "type": "object",
+    "properties": {
+      "customer": {
+        "type": "string",
+        "description": "客户",
+        "x-resolution": "fuzzy_customer",
+        "x-askIfMissing": true,
+        "x-examples": ["张三", "给张总下单", "客户是上海XX贸易"]
+      },
+      "product": {
+        "type": "string",
+        "description": "产品型号",
+        "x-resolution": "fuzzy_product",
+        "x-askIfMissing": true,
+        "x-examples": ["A-100", "要一百个A型", "A一百"]
+      },
+      "quantity": {
+        "type": "number",
+        "description": "数量",
+        "minimum": 1,
+        "x-resolution": "number_normalize",
+        "x-askIfMissing": true,
+        "x-examples": ["120个", "一百二十", "要两百"]
+      },
+      "unit_price": {
+        "type": "number",
+        "description": "单价",
+        "minimum": 0,
+        "x-resolution": "lookup_price_list",
+        "x-askIfMissing": true,
+        "x-inferFrom": "customer_price_group",
+        "x-confidenceDefault": 0.7
+      },
+      "delivery_date": {
+        "type": "string",
+        "description": "交期",
+        "x-resolution": "date_parse",
+        "x-askIfMissing": true,
+        "x-examples": ["下周三", "月底前", "9月20号"]
+      },
+      "warehouse": {
+        "type": "string",
+        "description": "仓库",
+        "x-resolution": "enum",
+        "x-askIfMissing": false,
+        "x-inferFrom": "customer_last_order",
+        "x-confidenceDefault": 0.8
+      },
+      "currency": {
+        "type": "string",
+        "description": "币种",
+        "enum": ["CNY", "USD", "EUR"],
+        "default": "CNY",
+        "x-resolution": "enum",
+        "x-askIfMissing": false
+      },
+      "remark": {
+        "type": "string",
+        "description": "备注",
+        "x-resolution": "passthrough",
+        "x-askIfMissing": false
+      }
+    },
+    "required": ["customer", "product", "quantity"]
+  },
+  "precheck": [
+    { "verb": "credit.check", "onFail": "warn" },
+    { "verb": "inventory.availability", "onFail": "warn" }
+  ],
+  "_comment": [
+    "本文件由 schema/order.create.json 经编译器自动生成，请勿手工编辑。",
+    "注意 title → description 的直接映射：工具参数描述是白送的，无需手写。",
+    "注意 x-agent.* → x-* 的映射：抽取策略、示例、推断来源一并带过来。",
+    "注意 required 数组：Schema 的必填字段自动成为 tool 的必填参数。"
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "确认订单",
+  "x-verb": "order.confirm",
+  "x-description": "把草稿订单置为已确认。确认是一道不可逆的门槛：越过之后这张单就冻住了，再要调整只能另开变更单。",
+  "x-risk": "write",
+  "x-requires-confirm": true,
+  "properties": {
+    "orderNo": {
+      "type": "string",
+      "title": "订单号",
+      "x-component": "Input",
+      "x-decorator": "FormItem",
+      "x-component-props": { "placeholder": "SO-2026-1007" },
+      "x-validator": [{ "required": true, "message": "请填写订单号" }],
+      "x-index": 10,
+      "x-agent": {
+        "extract": "order_no",
+        "resolution": "order_lookup",
+        "askIfMissing": true,
+        "examples": ["SO-2026-1007", "确认1007", "把1007那单确认了"],
+        "notes": "确认是不可逆的门槛 —— 越过之后这张单不再可改，只能靠变更单调整"
+      }
+    }
+  },
+  "required": ["orderNo"]
+}

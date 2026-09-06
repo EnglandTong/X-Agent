@@ -1,0 +1,353 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>AGT-ERP 原型 · 一句话建单</title>
+<style>
+  :root{
+    --bg:#f6f7f9; --card:#fff; --line:#e3e6ec; --text:#16181d; --muted:#6b7280;
+    --blue:#2563eb; --blue-bg:#eff6ff; --green:#16a34a; --green-bg:#f0fdf4;
+    --amber:#d97706; --amber-bg:#fffbeb; --red:#dc2626; --red-bg:#fef2f2;
+    --purple:#7c3aed; --purple-bg:#f5f3ff;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{
+    font-family:system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif;
+    background:var(--bg);color:var(--text);line-height:1.5;
+    padding:12px;max-width:640px;margin:0 auto;padding-bottom:40px;
+  }
+  header{padding:8px 0 14px}
+  header h1{font-size:18px;font-weight:700}
+  header p{font-size:12px;color:var(--muted);margin-top:2px}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:12px}
+
+  .label{font-size:11px;font-weight:700;color:var(--muted);letter-spacing:.5px;margin-bottom:8px;text-transform:uppercase}
+
+  .examples{display:flex;flex-wrap:wrap;gap:6px}
+  .chip-btn{
+    border:1px solid var(--line);background:#fff;border-radius:999px;
+    padding:7px 12px;font-size:12px;color:var(--text);cursor:pointer;
+    min-height:34px;
+  }
+  .chip-btn:active{background:var(--blue-bg);border-color:var(--blue)}
+
+  .input-row{display:flex;gap:8px}
+  input[type=text]{
+    flex:1;border:1px solid var(--line);border-radius:10px;padding:11px 12px;
+    font-size:16px;background:#fff;color:var(--text);min-height:44px;
+  }
+  input[type=text]:focus{outline:none;border-color:var(--blue)}
+  button.primary{
+    background:var(--blue);color:#fff;border:none;border-radius:10px;
+    padding:0 18px;font-size:15px;font-weight:600;cursor:pointer;min-height:44px;
+  }
+
+  .slot{display:flex;align-items:center;gap:8px;padding:8px 0;border-bottom:1px dashed var(--line)}
+  .slot:last-child{border-bottom:none}
+  .slot .k{font-size:12px;color:var(--muted);width:64px;flex-shrink:0}
+  .slot .v{font-size:14px;font-weight:600;flex:1}
+  .tag{font-size:10px;padding:2px 7px;border-radius:5px;font-weight:700;flex-shrink:0}
+  .t-said{background:var(--green-bg);color:var(--green);border:1px solid #bbf7d0}
+  .t-infer{background:var(--amber-bg);color:var(--amber);border:1px solid #fde68a}
+  .t-default{background:#f3f4f6;color:var(--muted);border:1px solid var(--line)}
+  .t-miss{background:var(--red-bg);color:var(--red);border:1px solid #fecaca}
+
+  .candidates{background:var(--red-bg);border:1px solid #fecaca;border-radius:10px;padding:12px;margin-bottom:12px}
+  .candidates .title{font-size:12px;font-weight:700;color:var(--red);margin-bottom:8px}
+  .cand{
+    display:flex;justify-content:space-between;align-items:center;
+    background:#fff;border:1px solid var(--line);border-radius:8px;
+    padding:9px 11px;margin-bottom:6px;font-size:14px;cursor:pointer;
+  }
+  .cand:last-child{margin-bottom:0}
+  .cand .sub{font-size:11px;color:var(--muted)}
+
+  .field{margin-bottom:12px}
+  .field label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  .field .ctrl{
+    border:1px solid var(--line);border-radius:8px;padding:10px 11px;
+    font-size:15px;background:#fff;min-height:42px;display:flex;align-items:center;
+  }
+  .field.infer .ctrl{background:var(--amber-bg);border-color:#fde68a}
+  .field.miss .ctrl{background:var(--red-bg);border-color:#fecaca;color:var(--red)}
+  .field .src{font-size:10px;margin-top:3px;display:flex;align-items:center;gap:4px}
+  .field.infer .src{color:var(--amber);font-weight:600}
+  .field.miss .src{color:var(--red);font-weight:600}
+  .field .src.normal{color:var(--muted)}
+
+  .actions{display:flex;gap:8px;margin-top:14px}
+  .btn{flex:1;border-radius:10px;padding:12px;font-size:15px;font-weight:600;cursor:pointer;min-height:46px}
+  .btn-go{background:var(--blue);color:#fff;border:none}
+  .btn-cancel{background:#fff;color:var(--text);border:1px solid var(--line)}
+
+  details{background:#0f172a;border-radius:10px;overflow:hidden;margin-top:12px}
+  details summary{padding:11px 13px;font-size:12px;color:#94a3b8;cursor:pointer;list-style:none}
+  details summary::-webkit-details-marker{display:none}
+  details summary::before{content:"▸ ";color:#64748b}
+  details[open] summary::before{content:"▾ "}
+  pre{
+    padding:0 13px 13px;font-size:11px;color:#e2e8f0;overflow-x:auto;
+    font-family:ui-monospace,SFMono-Regular,Menlo,monospace;line-height:1.6;
+  }
+  .hint{font-size:11px;color:var(--muted);line-height:1.7}
+  .hint b{color:var(--text)}
+</style>
+</head>
+<body>
+
+<header>
+  <h1>AGT-ERP 原型 · 一句话建单</h1>
+  <p>Schema 是真源 · 表单与 AI 工具都是它的消费者</p>
+</header>
+
+<div class="card">
+  <div class="label">试试这些（点一下即可）</div>
+  <div class="examples">
+    <button class="chip-btn" onclick="run('帮张三下 120 个 A-100，下周三要')">帮张三下120个A-100，下周三要</button>
+    <button class="chip-btn" onclick="run('给张来 50 个 B-200')">给张来50个B-200（歧义）</button>
+    <button class="chip-btn" onclick="run('王五要 C-300')">王五要C-300（缺字段）</button>
+    <button class="chip-btn" onclick="run('查一下李四上个月的单')">查一下李四上个月的单</button>
+  </div>
+</div>
+
+<div class="card">
+  <div class="label">自然语言输入（未来是语音）</div>
+  <div class="input-row">
+    <input type="text" id="q" placeholder="例如：帮张三下120个A-100，下周三要" value="帮张三下 120 个 A-100，下周三要">
+    <button class="primary" onclick="run()">生成</button>
+  </div>
+</div>
+
+<div id="result" hidden>
+
+  <div class="card">
+    <div class="label">① 槽位抽取结果</div>
+    <div id="slots"></div>
+  </div>
+
+  <div id="ambBox" hidden>
+    <div class="candidates">
+      <div class="title">⚠️ 匹配到多个，请确认 —— 模型不自己拍板</div>
+      <div id="candList"></div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="label">② 确认页（Schema 渲染 · 推断项高亮）</div>
+    <div id="form"></div>
+    <div class="actions">
+      <button class="btn btn-cancel" onclick="alert('原型：这里会放弃并保留原话到备注')">取消</button>
+      <button class="btn btn-go" onclick="alert('原型：这里会走 order.create --dry-run → 确认 → 落库 + 留痕')">确认建单</button>
+    </div>
+  </div>
+
+  <details>
+    <summary>③ 同一份 Schema 编译出的 Tool Schema（给 LLM 用）</summary>
+    <pre id="toolJson"></pre>
+  </details>
+
+</div>
+
+<div class="card" style="margin-top:12px">
+  <div class="label">这个原型在验证什么</div>
+  <p class="hint">
+    <b>绿色</b>＝你说的　<b>黄色</b>＝系统推断（确认页必须高亮）　<b>红色</b>＝缺失（一次问完，不猜）<br><br>
+    <b>注意：</b>抽取逻辑目前是<b>规则模拟</b>，不是真实模型。原型验证的是<b>交互流程与 Schema 双消费</b>；真实准确率需要你本机 RTX 4050 跑星火 1.7B 才能测。
+  </p>
+</div>
+
+<script>
+// ---------------------------------------------------------------- 模拟数据
+const DB = {
+  customers: [
+    {name:'张三', code:'C001', lastWarehouse:'华东仓', level:'A'},
+    {name:'张伟', code:'C002', lastWarehouse:'华南仓', level:'B'},
+    {name:'李四', code:'C003', lastWarehouse:'华东仓', level:'A'},
+    {name:'王五', code:'C004', lastWarehouse:'华北仓', level:'C'}
+  ],
+  products: [
+    {model:'A-100', name:'标准件A型', price:12.5},
+    {model:'B-200', name:'标准件B型', price:28.0},
+    {model:'C-300', name:'标准件C型', price:45.0}
+  ]
+};
+
+const CN_NUM = {零:0,一:1,二:2,两:2,三:3,四:4,五:5,六:6,七:7,八:8,九:9,十:10};
+
+// ---------------------------------------------------------------- 抽取
+function extractSlots(text){
+  const s = {};
+
+  // 客户：完全匹配优先，其次部分匹配
+  const exact = DB.customers.filter(c => text.includes(c.name));
+  if (exact.length === 1){
+    s.customer = {value: exact[0].name, source:'said', note: exact[0].code + ' · ' + exact[0].level + '级'};
+  } else if (exact.length > 1){
+    s.customer = {value:null, source:'ambiguous', candidates: exact};
+  } else {
+    const hit = DB.customers.filter(c => c.name[0] && text.includes(c.name[0]));
+    if (hit.length >= 1){
+      s.customer = {value:null, source:'ambiguous', candidates: hit};
+    } else {
+      s.customer = {value:null, source:'missing'};
+    }
+  }
+
+  // 产品：匹配型号（A-100 / A100 / A 一百 → 简化）
+  const pm = text.match(/([ABC])\s*-?\s*(\d{3})/i) || text.match(/([ABC])\s*(一百|二百|三百)/);
+  if (pm){
+    let num = pm[2];
+    if (num === '一百') num = '100';
+    if (num === '二百') num = '200';
+    if (num === '三百') num = '300';
+    const model = pm[1].toUpperCase() + '-' + num;
+    const p = DB.products.find(x => x.model === model);
+    s.product = {value: model, source:'said', note: p ? p.name : ''};
+    s._product = p;
+  } else {
+    s.product = {value:null, source:'missing'};
+  }
+
+  // 数量：阿拉伯数字优先，其次中文
+  let qty = null;
+  const q1 = text.match(/(\d+)\s*(个|台|件|只|套)?/);
+  if (q1) qty = parseInt(q1[1], 10);
+  if (qty === null){
+    const q2 = text.match(/(一百|两百|二百|三百|五十|八十)/);
+    const map = {'一百':100,'两百':200,'二百':200,'三百':300,'五十':50,'八十':80};
+    if (q2) qty = map[q2[1]];
+  }
+  s.qty = qty ? {value:qty, source:'said'} : {value:null, source:'missing'};
+
+  // 交期
+  let date = null, dsrc = 'said';
+  if (text.includes('下周三'))      date = nextWeekday(3);
+  else if (text.includes('下周'))   date = plusDays(7);
+  else if (text.includes('月底'))   date = monthEnd();
+  else if (text.includes('明天'))   date = plusDays(1);
+  else {
+    const dm = text.match(/(\d{1,2})月(\d{1,2})[号日]/);
+    if (dm) date = new Date(new Date().getFullYear(), parseInt(dm[1],10)-1, parseInt(dm[2],10));
+  }
+  s.date = date ? {value: fmt(date), source:dsrc} : {value:null, source:'missing'};
+
+  // 推断项
+  const cust = exact.length === 1 ? exact[0] : null;
+  s.warehouse = {
+    value: cust ? cust.lastWarehouse : '华东仓',
+    source:'infer',
+    conf: cust ? 0.85 : 0.5,
+    note: cust ? '按该客户最近订单推断' : '无客户信息，按系统默认值'
+  };
+  s.price = {
+    value: s._product ? s._product.price : null,
+    source: s._product ? 'infer' : 'missing',
+    conf: 0.7,
+    note: s._product ? '按价目表推断，需确认' : '未识别产品，无法取价'
+  };
+  s.currency = {value:'CNY', source:'default'};
+
+  return s;
+}
+
+function nextWeekday(target){
+  const d = new Date();
+  let diff = (target - d.getDay() + 7) % 7;
+  if (diff === 0) diff = 7;
+  d.setDate(d.getDate() + diff);
+  return d;
+}
+function plusDays(n){ const d = new Date(); d.setDate(d.getDate()+n); return d; }
+function monthEnd(){ const d = new Date(); return new Date(d.getFullYear(), d.getMonth()+1, 0); }
+function fmt(d){ return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0'); }
+
+// ---------------------------------------------------------------- 渲染
+const FIELDS = [
+  {key:'customer',  label:'客户'},
+  {key:'product',   label:'产品型号'},
+  {key:'qty',       label:'数量'},
+  {key:'price',     label:'单价'},
+  {key:'date',      label:'交期'},
+  {key:'warehouse', label:'仓库'},
+  {key:'currency',  label:'币种'}
+];
+
+function render(slots){
+  // ① 槽位
+  const box = document.getElementById('slots');
+  box.innerHTML = FIELDS.map(f => {
+    const s = slots[f.key];
+    const cls = {'said':'t-said','infer':'t-infer','default':'t-default','missing':'t-miss','ambiguous':'t-miss'}[s.source];
+    const txt = {'said':'你说的','infer':'推断 ' + Math.round((s.conf||0)*100) + '%','default':'默认','missing':'缺失','ambiguous':'有歧义'}[s.source];
+    const val = s.value !== null && s.value !== undefined ? s.value : '—';
+    return '<div class="slot"><span class="k">' + f.label + '</span>' +
+           '<span class="v">' + val + (s.note ? ' <span style="font-size:11px;color:var(--muted);font-weight:400">' + s.note + '</span>' : '') + '</span>' +
+           '<span class="tag ' + cls + '">' + txt + '</span></div>';
+  }).join('');
+
+  // ② 歧义候选
+  const amb = FIELDS.map(f => slots[f.key]).find(s => s.source === 'ambiguous');
+  const ambBox = document.getElementById('ambBox');
+  if (amb){
+    ambBox.hidden = false;
+    document.getElementById('candList').innerHTML = amb.candidates.map(c =>
+      '<div class="cand"><div>' + c.name + '<div class="sub">' + c.code +
+      (c.level ? ' · ' + c.level + '级客户' : '') + '</div></div><div class="sub">最后下单仓库：' +
+      (c.lastWarehouse || '—') + '</div></div>'
+    ).join('');
+  } else {
+    ambBox.hidden = true;
+  }
+
+  // ③ 确认页表单
+  document.getElementById('form').innerHTML = FIELDS.map(f => {
+    const s = slots[f.key];
+    const cls = s.source === 'infer' ? 'infer' : (s.source === 'missing' || s.source === 'ambiguous' ? 'miss' : '');
+    const val = s.value !== null && s.value !== undefined ? s.value : '待补充';
+    let src = '';
+    if (s.source === 'infer') src = '<div class="src">⚠ 系统推断（' + Math.round((s.conf||0)*100) + '%）' + (s.note ? ' · ' + s.note : '') + '，请核对</div>';
+    else if (s.source === 'missing') src = '<div class="src">✕ 缺失，需要补充</div>';
+    else if (s.source === 'ambiguous') src = '<div class="src">✕ 有歧义，请从上方候选选择</div>';
+    else if (s.source === 'default') src = '<div class="src normal">系统默认值</div>';
+    else src = '<div class="src normal">来自你的输入</div>';
+    return '<div class="field ' + cls + '"><label>' + f.label + '</label>' +
+           '<div class="ctrl">' + val + '</div>' + src + '</div>';
+  }).join('');
+
+  // ④ Tool Schema
+  document.getElementById('toolJson').textContent = JSON.stringify({
+    name: 'order.create',
+    description: '创建销售订单',
+    risk: 'write',
+    requiresConfirm: true,
+    parameters: {
+      type: 'object',
+      properties: {
+        customer:  {type:'string', description:'客户',     'x-resolution':'fuzzy_customer'},
+        product:   {type:'string', description:'产品型号', 'x-resolution':'fuzzy_product'},
+        quantity:  {type:'number', description:'数量', minimum:1, 'x-resolution':'number_normalize'},
+        unit_price:{type:'number', description:'单价',     'x-resolution':'lookup_price_list'},
+        delivery_date:{type:'string', description:'交期',  'x-resolution':'date_parse'},
+        warehouse: {type:'string', description:'仓库',     'x-resolution':'enum'},
+        currency:  {type:'string', description:'币种', enum:['CNY','USD','EUR'], default:'CNY'}
+      },
+      required: ['customer','product','quantity']
+    }
+  }, null, 2);
+}
+
+function run(text){
+  const q = text || document.getElementById('q').value;
+  if (!q) return;
+  if (text) document.getElementById('q').value = text;
+  document.getElementById('result').hidden = false;
+  render(extractSlots(q));
+}
+
+document.getElementById('q').addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+run();
+</script>
+</body>
+</html>

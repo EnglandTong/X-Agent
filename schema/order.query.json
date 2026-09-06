@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "订单查询",
+  "x-verb": "order.query",
+  "x-description": "查询销售订单列表。可按客户、状态、订单号关键字过滤。只读操作，不产生任何变更。",
+  "x-risk": "read",
+  "x-requires-confirm": false,
+  "properties": {
+    "customerId": {
+      "type": "string",
+      "title": "客户",
+      "x-component": "EntitySelect",
+      "x-decorator": "FormItem",
+      "x-component-props": { "entity": "customer", "placeholder": "留空=全部客户", "allowClear": true },
+      "x-index": 10,
+      "x-agent": {
+        "extract": "customer",
+        "resolution": "fuzzy_customer",
+        "askIfMissing": false,
+        "examples": ["张三的单", "查一下李四最近订单"],
+        "notes": "查询场景客户可省略，重名时同样弹候选"
+      }
+    },
+    "status": {
+      "type": "string",
+      "title": "状态",
+      "enum": ["DRAFT", "CONFIRMED", "SHIPPED", "CANCELLED"],
+      "x-component": "Select",
+      "x-decorator": "FormItem",
+      "x-component-props": {
+        "allowClear": true,
+        "placeholder": "留空=全部状态"
+      },
+      "x-index": 20,
+      "x-agent": {
+        "extract": "status",
+        "resolution": "enum_alias",
+        "askIfMissing": false,
+        "examples": ["已出货的", "草稿单", "还没确认的"],
+        "notes": "口语到枚举的别名映射由代码完成，不靠模型"
+      }
+    },
+    "keyword": {
+      "type": "string",
+      "title": "订单号关键字",
+      "x-component": "Input",
+      "x-decorator": "FormItem",
+      "x-component-props": { "placeholder": "如 SO-2026-1001" },
+      "x-index": 30,
+      "x-agent": {
+        "extract": "keyword",
+        "resolution": "passthrough",
+        "askIfMissing": false,
+        "examples": ["SO-2026-1001"],
+        "notes": "原样透传做模糊匹配"
+      }
+    },
+    "limit": {
+      "type": "number",
+      "title": "返回条数",
+      "default": 10,
+      "minimum": 1,
+      "maximum": 100,
+      "x-component": "NumberPicker",
+      "x-decorator": "FormItem",
+      "x-component-props": { "min": 1, "max": 100, "precision": 0 },
+      "x-index": 40,
+      "x-agent": {
+        "extract": "limit",
+        "resolution": "number_normalize",
+        "askIfMissing": false,
+        "examples": ["最近五条", "全部"],
+        "notes": "不指定时默认 10"
+      }
+    }
+  },
+  "required": []
+}

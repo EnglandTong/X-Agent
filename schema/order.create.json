@@ -1,0 +1,163 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "title": "销售订单",
+  "x-verb": "order.create",
+  "x-description": "创建一张销售订单。写入前会自动执行信用检查与库存可用性检查。",
+  "x-risk": "write",
+  "x-requires-confirm": true,
+  "properties": {
+    "customerId": {
+      "type": "string",
+      "title": "客户",
+      "x-component": "CustomerSelect",
+      "x-decorator": "FormItem",
+      "x-component-props": { "placeholder": "请选择客户" },
+      "x-validator": [{ "required": true, "message": "请选择客户" }],
+      "x-index": 10,
+      "x-agent": {
+        "extract": "customer",
+        "resolution": "fuzzy_customer",
+        "askIfMissing": true,
+        "examples": ["张三", "给张总下单", "客户是上海XX贸易"],
+        "notes": "重名时必须弹候选，绝不自动选中"
+      }
+    },
+    "productId": {
+      "type": "string",
+      "title": "产品型号",
+      "x-component": "ProductSelect",
+      "x-decorator": "FormItem",
+      "x-validator": [{ "required": true, "message": "请选择产品" }],
+      "x-index": 20,
+      "x-agent": {
+        "extract": "product",
+        "resolution": "fuzzy_product",
+        "askIfMissing": true,
+        "examples": ["A-100", "要一百个A型", "A一百"],
+        "notes": "语音场景下型号是头号错误源，必须挂型号词典做编辑距离 + 拼音双重匹配"
+      }
+    },
+    "qty": {
+      "type": "number",
+      "title": "数量",
+      "minimum": 1,
+      "x-component": "NumberPicker",
+      "x-decorator": "FormItem",
+      "x-component-props": { "min": 1, "precision": 0 },
+      "x-validator": [{ "required": true, "message": "请填写数量" }],
+      "x-index": 30,
+      "x-agent": {
+        "extract": "quantity",
+        "resolution": "number_normalize",
+        "askIfMissing": true,
+        "examples": ["120个", "一百二十", "要两百"],
+        "notes": "中文数字必须归一（一百二 → 120）"
+      }
+    },
+    "unitPrice": {
+      "type": "number",
+      "title": "单价",
+      "minimum": 0,
+      "x-component": "NumberPicker",
+      "x-decorator": "FormItem",
+      "x-component-props": { "precision": 2 },
+      "x-index": 40,
+      "x-agent": {
+        "extract": "unit_price",
+        "resolution": "lookup_price_list",
+        "askIfMissing": true,
+        "inferFrom": "customer_price_group",
+        "confidenceDefault": 0.7,
+        "examples": ["按老价格", "还是上次的价"],
+        "notes": "可推断，但必须在确认页高亮标为「推断值」，不可静默落库"
+      }
+    },
+    "deliveryDate": {
+      "type": "string",
+      "title": "交期",
+      "x-component": "DatePicker",
+      "x-decorator": "FormItem",
+      "x-index": 50,
+      "x-agent": {
+        "extract": "delivery_date",
+        "resolution": "date_parse",
+        "askIfMissing": true,
+        "examples": ["下周三", "月底前", "9月20号"],
+        "notes": "相对时间需基于「今天」解析，解析结果必须在确认页可见"
+      }
+    },
+    "warehouseId": {
+      "type": "string",
+      "title": "仓库",
+      "enum": ["华东仓", "华南仓", "华北仓"],
+      "x-component": "Select",
+      "x-decorator": "FormItem",
+      "x-component-props": { "allowClear": true, "placeholder": "不选则按客户默认仓" },
+      "x-index": 60,
+      "x-agent": {
+        "extract": "warehouse",
+        "resolution": "enum",
+        "askIfMissing": false,
+        "inferFrom": "customer_last_order",
+        "confidenceDefault": 0.8,
+        "examples": ["跟上次一样", "发华南仓"],
+        "notes": "默认按该客户最近订单推断；用户改过一次后应记住（学习开关）"
+      }
+    },
+    "currency": {
+      "type": "string",
+      "title": "币种",
+      "enum": ["CNY", "USD", "EUR"],
+      "default": "CNY",
+      "x-component": "Select",
+      "x-decorator": "FormItem",
+      "x-index": 70,
+      "x-agent": {
+        "extract": "currency",
+        "resolution": "enum",
+        "askIfMissing": false,
+        "notes": "默认 CNY，无需反问"
+      }
+    },
+    "remark": {
+      "type": "string",
+      "title": "备注",
+      "x-component": "TextArea",
+      "x-decorator": "FormItem",
+      "x-component-props": { "rows": 3 },
+      "x-index": 80,
+      "x-agent": {
+        "extract": "remark",
+        "resolution": "passthrough",
+        "askIfMissing": false,
+        "notes": "原话兜底字段：抽取后剩余的自然语言残片放这里，避免信息丢失"
+      }
+    },
+    "originNo": {
+      "type": "string",
+      "title": "原单号",
+      "x-component": "Input",
+      "x-decorator": "FormItem",
+      "x-component-props": { "placeholder": "变更单填写：被变更的原订单号" },
+      "x-index": 90,
+      "x-agent": {
+        "extract": "origin_no",
+        "resolution": "order_lookup",
+        "askIfMissing": false,
+        "examples": ["SO-2026-1007", "改一下1007那单", "把上一单改成200个"],
+        "notes": "变更单专用 —— 这是串联两单的关键词：新单用它指向原单，原单用 supersededByNo 指回新单。两单各自独立存在，谁都不被修改"
+      }
+    }
+  },
+  "required": ["customerId", "productId", "qty"],
+  "x-precheck": [
+    { "verb": "credit.check", "onFail": "warn", "message": "该客户信用额度不足" },
+    { "verb": "inventory.availability", "onFail": "warn", "message": "库存不足，将产生缺货" }
+  ],
+  "x-postcheck": [
+    { "rule": "credit_limit", "severity": "block" },
+    { "rule": "min_order_amount", "severity": "block" },
+    { "rule": "price_floor", "severity": "confirm" }
+  ]
+}
