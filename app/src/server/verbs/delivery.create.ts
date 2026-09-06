@@ -17,7 +17,7 @@ export const deliveryCreate: Verb = {
     const orderNo = String(args.orderNo ?? '').trim()
     const warehouse = (args.warehouseId as string | undefined) ?? null
     const remark = (args.remark as string | undefined) ?? null
-    /** 可选：部分出货数量（单行订单时生效；多行则按比例不适用，仅限制首行） */
+    /** 可选：部分出货数量——仅单行订单可用；多行订单传标量 qty → 硬错（禁止静默出全部剩余） */
     const partialQty =
       args.qty !== undefined && args.qty !== null && args.qty !== ''
         ? Number(args.qty)
@@ -36,13 +36,22 @@ export const deliveryCreate: Verb = {
       }
     }
 
+    const multiLine = order.items.length > 1
+    if (partialQty !== null && Number.isFinite(partialQty) && multiLine) {
+      return {
+        ok: false,
+        message: `订单 ${orderNo} 有 ${order.items.length} 行，不能用标量 qty=${partialQty} 部分出货（禁止静默出全部剩余）。请省略 qty 以按各行剩余量出货，或拆成单行订单。`,
+        issues: [],
+      }
+    }
+
     const remaining = await remainingByProduct(db, order.id)
     const lines: Array<{ productId: string; qty: number }> = []
     for (const it of order.items) {
       const rem = remaining.get(it.productId)?.remaining ?? 0
       if (rem <= 0) continue
       let qty = rem
-      if (partialQty !== null && Number.isFinite(partialQty) && order.items.length === 1) {
+      if (partialQty !== null && Number.isFinite(partialQty)) {
         if (partialQty <= 0) {
           return { ok: false, message: '出货数量必须大于 0。', issues: [] }
         }

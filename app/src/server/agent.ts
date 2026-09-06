@@ -201,6 +201,64 @@ function digitsToArabic(s: string): string {
 }
 
 /**
+ * 从话术抽出多行「型号 + 数量」。
+ * 例：「100个A-100和200个B-200」「A-100×50，B-200 30个」
+ */
+function extractOrderLines(
+  utterance: string,
+  dict: ExtractDict
+): Array<{ product: string; quantity: string }> {
+  const text = digitsToArabic(utterance)
+  const models: Array<{ model: string; index: number; end: number }> = []
+  const modelRe = /([A-Za-z])\s*-?\s*(\d{3})/g
+  let m: RegExpExecArray | null
+  while ((m = modelRe.exec(text)) !== null) {
+    models.push({
+      model: `${m[1].toUpperCase()}-${m[2]}`,
+      index: m.index,
+      end: m.index + m[0].length,
+    })
+  }
+  // 词典名兜底：若无型号字面量但提到产品名，最多一行
+  if (!models.length) {
+    const hit = dict.products
+      .filter((p) => p.name.length >= 2 && utterance.includes(p.name))
+      .sort((a, b) => b.name.length - a.name.length)[0]
+    if (!hit) return []
+    const qtyMatch = utterance.match(
+      /(\d+(?:\.\d+)?|[零一二两三四五六七八九十百千万]+)\s*(?:个|只|件|台|套|箱)?/
+    )
+    return qtyMatch ? [{ product: hit.model, quantity: qtyMatch[1] }] : []
+  }
+
+  const lines: Array<{ product: string; quantity: string }> = []
+  for (let i = 0; i < models.length; i++) {
+    const cur = models[i]
+    const prevEnd = i === 0 ? 0 : models[i - 1].end
+    const nextStart = i + 1 < models.length ? models[i + 1].index : text.length
+    const before = text.slice(prevEnd, cur.index)
+    const after = text.slice(cur.end, nextStart)
+    const qtyBefore = before.match(
+      /(\d+(?:\.\d+)?|[零一二两三四五六七八九十百千万]+)\s*(?:个|只|件|台|套|箱|支|条)?\s*$/
+    )
+    const qtyAfter = after.match(
+      /^\s*[×x*＋+]?\s*(\d+(?:\.\d+)?|[零一二两三四五六七八九十百千万]+)\s*(?:个|只|件|台|套|箱|支|条)?/
+    )
+    const qty = qtyBefore?.[1] ?? qtyAfter?.[1]
+    if (qty) lines.push({ product: cur.model, quantity: qty })
+  }
+  return lines
+}
+
+/** 冒烟 / 评测用：暴露多行抽取 */
+export function extractOrderLinesForTest(
+  utterance: string,
+  dict: ExtractDict
+): Array<{ product: string; quantity: string }> {
+  return extractOrderLines(utterance, dict)
+}
+
+/**
  * 规则抽取器。
  * 这是 stub —— 它的输出格式就是未来 LLM 的输出格式。
  * 换成真实模型时，只需要替换这一个函数，其余全部不动。
@@ -231,31 +289,39 @@ function extractSlotsRules(
     if (hit) slots.customer = hit.name
   }
 
-  // ---------- 产品 ----------
-  const modelRegex = /([A-Za-z])\s*-?\s*(\d{3})/
-  const prodMatch = utterance.match(modelRegex) ?? digitsToArabic(utterance).match(modelRegex)
-  if (prodMatch) {
-    slots.product = `${prodMatch[1].toUpperCase()}-${prodMatch[2]}`
+  // ---------- 产品（可多行）----------
+  const lineItems = extractOrderLines(utterance, dict)
+  if (lineItems.length >= 2) {
+    slots.items = JSON.stringify(lineItems)
+    slots.product = lineItems[0].product
+    slots.quantity = lineItems[0].quantity
+  } else if (lineItems.length === 1) {
+    slots.product = lineItems[0].product
+    slots.quantity = lineItems[0].quantity
   } else {
-    // 词典兜底：说型号全名或产品名，如"标准件A型"
-    const hit = dict.products
-      .filter(
-        (p) =>
-          utterance.toUpperCase().includes(p.model.toUpperCase()) ||
-          (p.name.length >= 2 && utterance.includes(p.name))
-      )
-      .sort((a, b) => b.model.length - a.model.length)[0]
-    if (hit) slots.product = hit.model
-  }
+    const modelRegex = /([A-Za-z])\s*-?\s*(\d{3})/
+    const prodMatch = utterance.match(modelRegex) ?? digitsToArabic(utterance).match(modelRegex)
+    if (prodMatch) {
+      slots.product = `${prodMatch[1].toUpperCase()}-${prodMatch[2]}`
+    } else {
+      const hit = dict.products
+        .filter(
+          (p) =>
+            utterance.toUpperCase().includes(p.model.toUpperCase()) ||
+            (p.name.length >= 2 && utterance.includes(p.name))
+        )
+        .sort((a, b) => b.model.length - a.model.length)[0]
+      if (hit) slots.product = hit.model
+    }
 
-  // 数量：120个 / 一百二十 / 来50
-  const qtyMatch = utterance.match(
-    /(\d+(?:\.\d+)?|[零一二两三四五六七八九十百千万]+)\s*(?:个|只|件|台|套|箱|支|条|pcs|PCS)/
-  )
-  if (qtyMatch) slots.quantity = qtyMatch[1]
-  else {
-    const bareQty = utterance.match(/(?:来|要|订|数量|下单)[是为:：]?\s*(\d+(?:\.\d+)?|[零一二两三四五六七八九十百千万]+)/)
-    if (bareQty) slots.quantity = bareQty[1]
+    const qtyMatch = utterance.match(
+      /(\d+(?:\.\d+)?|[零一二两三四五六七八九十百千万]+)\s*(?:个|只|件|台|套|箱|支|条|pcs|PCS)/
+    )
+    if (qtyMatch) slots.quantity = qtyMatch[1]
+    else {
+      const bareQty = utterance.match(/(?:来|要|订|数量|下单)[是为:：]?\s*(\d+(?:\.\d+)?|[零一二两三四五六七八九十百千万]+)/)
+      if (bareQty) slots.quantity = bareQty[1]
+    }
   }
 
   // 单价：单价12 / 按12块 / 每个12.5
@@ -539,9 +605,17 @@ export async function interpret(
   }
 
   // --- 4. 缺失判定：一次问完，绝不逐个追问
-  const missingSlots = slots.filter(
-    (s) => s.source === 'missing' && tool.parameters.required.includes(s.slot)
-  )
+  // 多行 items 已消解时，单行 product/quantity 不再必填
+  const itemsResolved = slots.find((s) => s.field === 'items' || s.slot === 'items')
+  const hasItems =
+    Array.isArray(itemsResolved?.value) && (itemsResolved!.value as unknown[]).length > 0
+
+  const missingSlots = slots.filter((s) => {
+    if (s.source !== 'missing') return false
+    if (!tool.parameters.required.includes(s.slot)) return false
+    if (hasItems && (s.slot === 'product' || s.slot === 'quantity')) return false
+    return true
+  })
   // 歧义未决也算"缺失"—— 必须人来决定
   const ambiguous = slots.filter((s) => s.candidates && s.candidates.length > 0)
 

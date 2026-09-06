@@ -28,6 +28,7 @@
 | 18 | **小模型对比脚手架** | `npm run eval:compare`（可 `SKIP_CLOUD=1`） | 写出 `eval/results/compare-models.md` |
 | 19 | **API 10 条真链路** | `BASE_URL=… npm run trial:10` | 开单→用语→确认→部分出货→超量拦→查库存/信用 |
 | 20 | **云端对比（本轮）** | `npm run eval:compare` | rules 96%/98.3% · cloud 100%/100% |
+| 21 | **多行订单 + 预留同步** | `npm run smoke:multiline` | 多行 `items[]`；NL 抽两行；多行标量 qty 硬错；省略 qty 按行剩余；reserve50+ship50 → reserved 释放、available 不漂；超量硬拦 |
 
 ---
 

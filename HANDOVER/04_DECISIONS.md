@@ -24,8 +24,10 @@
 | 13 | 个人习惯学习 | **个人用语表（精确/轻模糊 SQLite）**；确认卡写入；优先于系统别称 | 向量知识库 / 静默学习 / 微调模型 |
 | 14 | 出货超量 | **硬拦**（`shipping_over`）：qty > 剩余可出 → 拒绝 create/confirm | 静默截断 / 只 warn 放行 |
 | 15 | 部分出货 | 允许；确认后仍有剩余 → **`PARTIALLY_SHIPPED`**；出完 → `SHIPPED` | 只能一次出完 / 无中间态 |
-| 16 | 出货 qty 语义 | **仅单行订单**可用标量 `qty` 做部分出货；多行禁止静默按比例 | 多行时用标量 qty  silently 出全部剩余 |
+| 16 | 出货 qty 语义 | **仅单行订单**可用标量 `qty` 做部分出货；**多行传标量 qty → 硬错**；省略 qty = 按各行剩余出货 | 多行时静默忽略 qty 并出全部剩余 |
 | 17 | 信用占用 | **仅 CONFIRMED 占用 `creditUsed`**；DRAFT 不占；cancel 释放 | 建单即占用 / 永不占用 |
+| 18 | 多行订单 | `order.create` 支持 `items[]`（优先于单行字段）；NL 可抽多型号+数量 | 永远单行、第二行静默丢弃 |
+| 19 | 预留↔出货 | `delivery.confirm` 扣 qty 同时 `reserved -= min(reserved, 出货量)`；PoC **未**按 orderId 分账 | 两套账互不相干导致 available 漂 |
 
 ---
 

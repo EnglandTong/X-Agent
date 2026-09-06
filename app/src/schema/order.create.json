@@ -35,7 +35,7 @@
         "resolution": "fuzzy_product",
         "askIfMissing": true,
         "examples": ["A-100", "要一百个A型", "A一百"],
-        "notes": "语音场景下型号是头号错误源，必须挂型号词典做编辑距离 + 拼音双重匹配"
+        "notes": "单行字段；多行时由 items 覆盖。语音场景下型号是头号错误源"
       }
     },
     "qty": {
@@ -52,7 +52,20 @@
         "resolution": "number_normalize",
         "askIfMissing": true,
         "examples": ["120个", "一百二十", "要两百"],
-        "notes": "中文数字必须归一（一百二 → 120）"
+        "notes": "单行数量；多行时由 items 覆盖"
+      }
+    },
+    "items": {
+      "type": "array",
+      "title": "多行明细",
+      "x-hidden": true,
+      "x-index": 25,
+      "x-agent": {
+        "extract": "items",
+        "resolution": "order_line_items",
+        "askIfMissing": false,
+        "examples": ["100个A-100和200个B-200", "A-100×50，B-200×30"],
+        "notes": "多行优先于 productId/qty。元素：{productId|product, qty|quantity, unitPrice?}。有 items 时 API 不再强求单行字段"
       }
     },
     "unitPrice": {

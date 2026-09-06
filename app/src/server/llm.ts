@@ -215,6 +215,7 @@ function buildSystemPrompt(
 3. 用户没提到的槽位就省略，绝不编造、绝不猜测、绝不用"同上"之类占位。
 4. verb 必须是下面清单里的一个，不能自创。判断不了就选最像的那个。
 5. 若用户是在「改一张已经存在的单」，verb 仍是 order.create，并把原单号抽到 origin_no。
+6. 若一句话里有多个「型号+数量」（如「100个A-100和200个B-200」），在 slots.items 里放 JSON 数组：[{"product":"A-100","quantity":"100"},{"product":"B-200","quantity":"200"}]，同时仍可填首行的 product/quantity。
 
 动词清单：
 ${verbLines.join('\n')}
@@ -227,7 +228,9 @@ ${enumHints.length ? `取值提示（用户说法不在列表内时，按原话�
 今天是 ${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')} ${WEEK[today.getDay()]}。
 
 输出格式（缺槽位就省略该 key）：
-{"verb":"order.create","slots":{"customer":"张三","product":"A-100","quantity":"120","delivery_date":"下周三"},"confidence":0.92}`
+{"verb":"order.create","slots":{"customer":"张三","product":"A-100","quantity":"120","delivery_date":"下周三"},"confidence":0.92}
+多行示例：
+{"verb":"order.create","slots":{"customer":"张三","items":"[{\\"product\\":\\"A-100\\",\\"quantity\\":\\"100\\"},{\\"product\\":\\"B-200\\",\\"quantity\\":\\"200\\"}]","product":"A-100","quantity":"100"},"confidence":0.9}`
 }
 
 // ---------------------------------------------------------------- 抽取

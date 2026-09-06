@@ -57,6 +57,7 @@
 | `scripts/eval-lexicon.ts` | 用语表夹具：`npm run eval:lexicon` |
 | `scripts/eval-compare-models.ts` | 云端 vs 本地对比：`npm run eval:compare` |
 | `scripts/smoke-delivery-remaining.ts` | 部分出货 / 超量硬拦冒烟（断言 + 非 0 退出） |
+| `scripts/smoke-multiline-reserve.ts` | 多行订单 + 标量 qty 硬错 + 预留同步释放：`npm run smoke:multiline` |
 | `scripts/smoke-verbs.ts` | 12 动词冒烟 |
 | `scripts/trial-10-utterances.ts` | API 真链路 10 条：`npm run trial:10` |
 | `eval/utterances.jsonl` | 主评测样本 |

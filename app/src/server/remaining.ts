@@ -40,12 +40,18 @@ export async function remainingByProduct(
   const map = new Map<string, RemainingLine>()
   for (const it of order.items) {
     const s = shipped.get(it.productId) ?? 0
-    map.set(it.productId, {
-      productId: it.productId,
-      ordered: it.qty,
-      shipped: s,
-      remaining: Math.max(0, it.qty - s),
-    })
+    const prev = map.get(it.productId)
+    if (prev) {
+      prev.ordered += it.qty
+      prev.remaining = Math.max(0, prev.ordered - prev.shipped)
+    } else {
+      map.set(it.productId, {
+        productId: it.productId,
+        ordered: it.qty,
+        shipped: s,
+        remaining: Math.max(0, it.qty - s),
+      })
+    }
   }
   return map
 }

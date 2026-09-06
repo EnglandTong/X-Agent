@@ -44,24 +44,24 @@ export const deliveryConfirm: Verb = {
       }
     }
 
-    // 预检库存
+    // 预检库存：物理 qty 须够；已预留可覆盖本次出货（故不用 available = qty-reserved 硬拦）
     const stockWarnings: string[] = []
     for (const item of delivery.items) {
       const inv = await db.inventory.findFirst({
         where: { productId: item.productId, warehouse },
       })
-      const avail = (inv?.qty ?? 0) - (inv?.reserved ?? 0)
-      if (!inv || avail < item.qty) {
+      if (!inv || inv.qty < item.qty) {
         return {
           ok: false,
-          message: `仓库「${warehouse}」可用库存不足（需要 ${item.qty}，可用 ${Math.max(0, avail)}）。`,
+          message: `仓库「${warehouse}」实物库存不足（需要 ${item.qty}，实物 ${inv?.qty ?? 0}）。`,
           issues: [],
         }
       }
-      // 可用性警告：可用但偏低（≤ 出货量的 1.2 倍）
-      if (avail <= item.qty * 1.2) {
+      const releaseReserve = Math.min(inv.reserved, item.qty)
+      const availAfter = inv.qty - item.qty - (inv.reserved - releaseReserve)
+      if (availAfter <= item.qty * 0.2) {
         stockWarnings.push(
-          `「${item.product.model}」确认后可用约 ${avail - item.qty}（偏低）`
+          `「${item.product.model}」确认后可用约 ${availAfter}（偏低）`
         )
       }
     }
@@ -71,9 +71,14 @@ export const deliveryConfirm: Verb = {
         const inv = await tx.inventory.findFirst({
           where: { productId: item.productId, warehouse },
         })
+        const releaseReserve = Math.min(inv!.reserved, item.qty)
         await tx.inventory.update({
           where: { id: inv!.id },
-          data: { qty: inv!.qty - item.qty },
+          data: {
+            qty: inv!.qty - item.qty,
+            // 出货确认同步释放预留，避免「预留 50 + 出 50 → available 凭空少 50」
+            reserved: inv!.reserved - releaseReserve,
+          },
         })
       }
       await tx.delivery.update({
@@ -105,7 +110,7 @@ export const deliveryConfirm: Verb = {
           remaining: l.remaining,
         })),
       },
-      message: `出货单 ${delivery.no} 已确认，库存已扣减，订单 ${delivery.order.no} → ${finalStatus === 'SHIPPED' ? '已出货' : '部分出货'}。`,
+      message: `出货单 ${delivery.no} 已确认，库存已扣减（预留已同步释放），订单 ${delivery.order.no} → ${finalStatus === 'SHIPPED' ? '已出货' : '部分出货'}。`,
       issues: stockWarnings.map((m) => ({
         level: 'warn' as const,
         rule: 'stock_low',

@@ -31,7 +31,7 @@
         "extract": "quantity",
         "resolution": "number_normalize",
         "askIfMissing": false,
-        "notes": "单行订单时可填部分出货；不填则出全部剩余",
+        "notes": "仅单行订单可填部分出货；多行订单传 qty → 硬错。不填则按各行剩余量出货",
         "examples": ["先出50个", "出货20"]
       }
     },

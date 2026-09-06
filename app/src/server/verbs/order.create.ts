@@ -1,14 +1,54 @@
 import type { Verb, VerbIssue } from './types'
 import { STATUS_LABEL } from '../resolve'
 
+type LineIn = { productId: string; qty: number; unitPrice?: number | null }
+
+function normalizeLines(args: Record<string, unknown>): LineIn[] {
+  if (Array.isArray(args.items) && args.items.length > 0) {
+    return (args.items as any[]).map((it) => ({
+      productId: String(it.productId),
+      qty: Number(it.qty),
+      unitPrice:
+        it.unitPrice !== undefined && it.unitPrice !== null && it.unitPrice !== ''
+          ? Number(it.unitPrice)
+          : null,
+    }))
+  }
+  if (args.productId != null && args.productId !== '' && args.qty != null && args.qty !== '') {
+    return [
+      {
+        productId: String(args.productId),
+        qty: Number(args.qty),
+        unitPrice:
+          args.unitPrice !== undefined && args.unitPrice !== null && args.unitPrice !== ''
+            ? Number(args.unitPrice)
+            : null,
+      },
+    ]
+  }
+  return []
+}
+
+/** 同产品合并为一行（剩余量按 productId 记账） */
+function mergeLines(lines: LineIn[]): LineIn[] {
+  const map = new Map<string, LineIn>()
+  for (const l of lines) {
+    const prev = map.get(l.productId)
+    if (!prev) {
+      map.set(l.productId, { ...l })
+      continue
+    }
+    prev.qty += l.qty
+    if (prev.unitPrice == null && l.unitPrice != null) prev.unitPrice = l.unitPrice
+  }
+  return [...map.values()]
+}
+
 /**
  * order.create —— 写入动词。
  *
  * 三道闸：precheck（提示）→ 领域校验（拦截）→ postcheck（业务规则）。
- * 注意分工：
- *   - 结构合法性（必填、类型、范围）由 Schema 层负责，早在调用动词前就完成了
- *   - 业务规则（信用、起订额、价格底线）由本层负责，是代码的确定性判断
- *   - 模型不参与任何一道闸 —— 它只负责把用户的话变成参数
+ * 支持单行（productId+qty）或多行（items[]）；多行优先。
  */
 export const orderCreate: Verb = {
   name: 'order.create',
@@ -19,9 +59,6 @@ export const orderCreate: Verb = {
     const issues: VerbIssue[] = []
 
     const customerId = args.customerId as string
-    const productId = args.productId as string
-    const qty = Number(args.qty)
-    const unitPrice = Number(args.unitPrice)
     const warehouse = (args.warehouseId as string | undefined) ?? null
     const currency = (args.currency as string | undefined) ?? 'CNY'
     const remark = (args.remark as string | undefined) ?? null
@@ -31,9 +68,22 @@ export const orderCreate: Verb = {
     /** 原地修订模式：非空 = 改同一张单，仅草稿可用 */
     const reviseOrderId = (args.orderId as string | undefined) ?? null
 
+    const rawLines = normalizeLines(args)
+    if (!rawLines.length) {
+      return {
+        ok: false,
+        message: '请提供订单行：items[] 或 productId + qty。',
+        issues: [],
+      }
+    }
+    for (const l of rawLines) {
+      if (!Number.isFinite(l.qty) || l.qty < 1) {
+        return { ok: false, message: '订单行数量必须 ≥ 1。', issues: [] }
+      }
+    }
+    const lines = mergeLines(rawLines)
+
     // ------------------------------------------------ 修订前置检查
-    // 不可变模型要求：格子提交即冻结，改单 = 新格子替换旧格子。
-    // 但领域层仍要守住一条底线 —— 只有草稿能改，已确认/已出货必须走变更流程。
     let revising: Awaited<ReturnType<typeof db.order.findUnique>> = null
     if (reviseOrderId && !originNoInput) {
       revising = await db.order.findUnique({ where: { id: reviseOrderId } })
@@ -50,12 +100,27 @@ export const orderCreate: Verb = {
     }
 
     const customer = await db.customer.findUnique({ where: { id: customerId } })
-    const product = await db.product.findUnique({ where: { id: productId } })
-
     if (!customer) return { ok: false, message: '客户不存在（可能已被删除）。', issues: [] }
-    if (!product) return { ok: false, message: '产品不存在（可能已被删除）。', issues: [] }
 
-    const totalAmount = Math.round(qty * unitPrice * 100) / 100
+    const products = await db.product.findMany({
+      where: { id: { in: lines.map((l) => l.productId) } },
+    })
+    const productById = new Map(products.map((p) => [p.id, p]))
+    for (const l of lines) {
+      if (!productById.has(l.productId)) {
+        return { ok: false, message: `产品不存在（${l.productId}）。`, issues: [] }
+      }
+    }
+
+    const resolvedLines = lines.map((l) => {
+      const product = productById.get(l.productId)!
+      const unitPrice =
+        l.unitPrice != null && Number.isFinite(l.unitPrice) ? l.unitPrice : product.price
+      const amount = Math.round(l.qty * unitPrice * 100) / 100
+      return { productId: l.productId, qty: l.qty, unitPrice, amount, product }
+    })
+    const totalAmount =
+      Math.round(resolvedLines.reduce((s, l) => s + l.amount, 0) * 100) / 100
 
     // 变更时：原单若已占用额度，建草稿检查可把原单金额加回可用（落库时释放）
     const OCCUPYING = new Set(['CONFIRMED', 'PARTIALLY_SHIPPED', 'SHIPPED'])
@@ -69,7 +134,6 @@ export const orderCreate: Verb = {
     }
 
     // ------------------------------------------------ postcheck: 业务规则
-    // 1) 信用额度：block（DRAFT 不占用；此处只预检「确认后是否够」）
     const remain = customer.creditLimit - customer.creditUsed + creditRelief
     if (totalAmount > remain) {
       issues.push({
@@ -79,7 +143,6 @@ export const orderCreate: Verb = {
       })
     }
 
-    // 2) 起订金额：block
     const MIN_AMOUNT = 500
     if (totalAmount < MIN_AMOUNT) {
       issues.push({
@@ -89,32 +152,33 @@ export const orderCreate: Verb = {
       })
     }
 
-    // 3) 价格底线：confirm（低于牌价 85% 需二次确认，不直接拦截）
-    const ratio = unitPrice / product.price
-    if (ratio < 0.85) {
-      issues.push({
-        level: 'confirm',
-        rule: 'price_floor',
-        message: `单价 ¥${unitPrice} 低于牌价 ¥${product.price} 的 85%（${(ratio * 100).toFixed(1)}%），需人工复核`,
-      })
-    }
-
-    // 4) 库存提示：warn（不阻断，但人要知道）
-    if (warehouse) {
-      const inv = await db.inventory.findFirst({
-        where: { productId, warehouse },
-      })
-      const avail = inv?.qty ?? 0
-      if (avail < qty) {
+    for (const l of resolvedLines) {
+      const ratio = l.unitPrice / l.product.price
+      if (ratio < 0.85) {
         issues.push({
-          level: 'warn',
-          rule: 'inventory_shortage',
-          message: `${warehouse} 现有 ${avail} ${product.unit}，本次需 ${qty} ${product.unit}，缺 ${qty - avail} ${product.unit}`,
+          level: 'confirm',
+          rule: 'price_floor',
+          message: `「${l.product.model}」单价 ¥${l.unitPrice} 低于牌价 ¥${l.product.price} 的 85%（${(ratio * 100).toFixed(1)}%），需人工复核`,
         })
       }
     }
 
-    // 有 block 级问题 → 直接拒绝，不落库
+    if (warehouse) {
+      for (const l of resolvedLines) {
+        const inv = await db.inventory.findFirst({
+          where: { productId: l.productId, warehouse },
+        })
+        const avail = inv?.qty ?? 0
+        if (avail < l.qty) {
+          issues.push({
+            level: 'warn',
+            rule: 'inventory_shortage',
+            message: `${warehouse}「${l.product.model}」现有 ${avail} ${l.product.unit}，本次需 ${l.qty} ${l.product.unit}，缺 ${l.qty - avail} ${l.product.unit}`,
+          })
+        }
+      }
+    }
+
     const blocking = issues.filter((i) => i.level === 'block')
     if (blocking.length) {
       return {
@@ -125,19 +189,15 @@ export const orderCreate: Verb = {
     }
 
     // ------------------------------------------------ 落库
-    // 三种模式，互斥：
-    //   A 变更单（originNo）  → 另开新单，原单冻结为 SUPERSEDED，两单靠业务关键字段互指
-    //   B 原地修订（orderId） → 仅草稿可用，单号不变
-    //   C 新建               → 普通新单
     let order: Awaited<ReturnType<typeof db.order.create>> & {
       customer: { name: string }
+      items: Array<{ productId: string; qty: number; unitPrice: number; amount: number }>
     }
     let mode: 'create' | 'revise' | 'change' = 'create'
     let originNo: string | null = null
     let chainId: string | null = null
 
     if (originNoInput) {
-      // ---------- 模式 A：变更单 ----------
       const origin = originForChange ?? (await db.order.findFirst({ where: { no: originNoInput } }))
       if (!origin) {
         return { ok: false, message: `原单 ${originNoInput} 不存在。`, issues: [] }
@@ -156,11 +216,17 @@ export const orderCreate: Verb = {
       mode = 'change'
       originNo = origin.no
       originForChange = origin
-      // 变更链：继承原单的链根，没有则以原单号为根 —— 这让整条变更链共享一个 chainId
       chainId = origin.chainId ?? origin.no
     } else if (revising) {
       mode = 'revise'
     }
+
+    const itemCreates = resolvedLines.map((l) => ({
+      productId: l.productId,
+      qty: l.qty,
+      unitPrice: l.unitPrice,
+      amount: l.amount,
+    }))
 
     if (mode === 'revise' && revising) {
       order = await db.order.update({
@@ -174,7 +240,7 @@ export const orderCreate: Verb = {
           remark,
           items: {
             deleteMany: {},
-            create: [{ productId, qty, unitPrice, amount: totalAmount }],
+            create: itemCreates,
           },
         },
         include: { customer: true, items: { include: { product: true } } },
@@ -201,13 +267,12 @@ export const orderCreate: Verb = {
           originNo,
           chainId,
           items: {
-            create: [{ productId, qty, unitPrice, amount: totalAmount }],
+            create: itemCreates,
           },
         },
         include: { customer: true, items: { include: { product: true } } },
       })
 
-      // 原单反向指回新单并冻结；若原单曾占用额度则释放（新单为 DRAFT，确认时再占用）
       if (mode === 'change' && originNo && originForChange) {
         await db.$transaction(async (tx: any) => {
           await tx.order.update({
@@ -232,6 +297,9 @@ export const orderCreate: Verb = {
     }
 
     const money = `¥${totalAmount.toLocaleString('zh-CN')}`
+    const lineSummary = resolvedLines
+      .map((l) => `${l.product.model}×${l.qty}`)
+      .join('、')
     return {
       ok: true,
       data: {
@@ -248,13 +316,20 @@ export const orderCreate: Verb = {
         mode,
         originNo,
         chainId,
+        lineCount: resolvedLines.length,
+        lines: resolvedLines.map((l) => ({
+          product: l.product.model,
+          qty: l.qty,
+          unitPrice: l.unitPrice,
+          amount: l.amount,
+        })),
       },
       message:
         mode === 'change'
-          ? `变更单 ${order.no} 已创建（${money}），原单 ${originNo} 已冻结为「已变更」并指向本单。`
+          ? `变更单 ${order.no} 已创建（${money}，${lineSummary}），原单 ${originNo} 已冻结为「已变更」并指向本单。`
           : mode === 'revise'
-            ? `订单 ${order.no} 已修改为 ${money}（原 ¥${revising!.totalAmount.toLocaleString('zh-CN')}）。`
-            : `订单 ${order.no} 已创建（草稿），金额 ${money}。`,
+            ? `订单 ${order.no} 已修改为 ${money}（${lineSummary}；原 ¥${revising!.totalAmount.toLocaleString('zh-CN')}）。`
+            : `订单 ${order.no} 已创建（草稿），金额 ${money}，${resolvedLines.length} 行：${lineSummary}。`,
       issues: issues.length ? issues : undefined,
     }
   },

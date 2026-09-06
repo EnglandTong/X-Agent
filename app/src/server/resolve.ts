@@ -493,6 +493,48 @@ export async function resolveSlot(
         : ok(n, `¥${n}`, 0.8, `"${raw}" → ¥${n}`)
     }
 
+    /**
+     * 多行订单：raw 为 JSON 数组或已是数组。
+     * 元素可用 product/productId + quantity/qty；消解后统一为 {productId, qty, unitPrice?}。
+     */
+    case 'order_line_items': {
+      let parsed: any[]
+      try {
+        parsed = typeof raw === 'string' ? JSON.parse(raw) : (raw as any[])
+      } catch {
+        return fail(`无法解析多行明细 "${String(raw).slice(0, 80)}"`)
+      }
+      if (!Array.isArray(parsed) || !parsed.length) {
+        return fail('多行明细为空')
+      }
+      const out: Array<{ productId: string; qty: number; unitPrice?: number }> = []
+      const labels: string[] = []
+      for (const line of parsed) {
+        const prodRaw = line.product ?? line.productId ?? line.model
+        if (!prodRaw) return fail('订单行缺少产品')
+        const prod = await fuzzyEntity(ctx.db, 'product', String(prodRaw))
+        if (!prod.ok || !prod.value) {
+          return fail(prod.note ?? `产品「${prodRaw}」无法消解`, prod.candidates)
+        }
+        const qtyRaw = line.qty ?? line.quantity
+        const qty = parseChineseNumber(qtyRaw as string | number)
+        if (qty === null || qty < 1) {
+          return fail(`订单行数量无效：「${qtyRaw}」`)
+        }
+        const row: { productId: string; qty: number; unitPrice?: number } = {
+          productId: String(prod.value),
+          qty,
+        }
+        if (line.unitPrice != null && line.unitPrice !== '') {
+          const up = parseChineseNumber(line.unitPrice as string | number)
+          if (up !== null) row.unitPrice = up
+        }
+        out.push(row)
+        labels.push(`${prod.label ?? prodRaw}×${qty}`)
+      }
+      return ok(out, labels.join('、'), 0.92, `多行 ${out.length}：${labels.join('、')}`)
+    }
+
     default:
       return ok(raw as string, String(raw), 0.9)
   }

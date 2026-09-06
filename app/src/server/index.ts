@@ -369,9 +369,11 @@ app.post<{
   // 注意命名对齐：args 的 key 是「字段名」(customerId)，
   // 而 tool.parameters.required 是「槽位名」(customer) —— 必须用原始 Schema 的 required
   const rawSchema = rawSchemas.get(req.params.name)
-  const missing = (rawSchema?.required ?? []).filter(
-    (f: string) => args[f] === undefined || args[f] === null || args[f] === ''
-  )
+  const hasItems = Array.isArray(args.items) && (args.items as unknown[]).length > 0
+  const missing = (rawSchema?.required ?? []).filter((f: string) => {
+    if (hasItems && (f === 'productId' || f === 'qty' || f === 'unitPrice')) return false
+    return args[f] === undefined || args[f] === null || args[f] === ''
+  })
   if (missing.length) {
     return reply.code(400).send({ error: `缺少必填参数：${missing.join(', ')}` })
   }

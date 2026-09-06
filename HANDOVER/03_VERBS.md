@@ -7,11 +7,11 @@
 | 动词 | 风险 | 必填 | 说明 |
 |---|---|---|---|
 | `order.query` | read | 无 | 查询订单，按客户/状态/单号关键字过滤，默认 10 条 |
-| `order.create` | write | `customerId` `productId` `qty` | 建单；**支持修订与变更两种模式** |
-| `order.confirm` | write | `orderNo` | 草稿 → 已确认；非草稿拒绝 |
-| `order.cancel` | write | `orderNo` `reason` | 取消；`SHIPPED` 拒绝 |
-| `delivery.create` | write | `orderNo` | 从 `CONFIRMED` / `PARTIALLY_SHIPPED` 生成出货草稿；可选 `qty`（单行部分出货） |
-| `delivery.confirm` | write | `deliveryNo` | 扣库存；订单 → `PARTIALLY_SHIPPED` 或 `SHIPPED` |
+| `order.create` | write | `customerId` + (`items[]` **或** `productId`/`qty`) | 建单；**支持多行**；修订与变更两种模式 |
+| `order.confirm` | write | `orderNo` | 草稿 → 已确认；非草稿拒绝；**占用信用额度** |
+| `order.cancel` | write | `orderNo` `reason` | 取消；`SHIPPED` 拒绝；已占用则释放额度 |
+| `delivery.create` | write | `orderNo` | 从 `CONFIRMED` / `PARTIALLY_SHIPPED` 生成出货草稿；可选 `qty`（**仅单行**）；多行传标量 `qty` → **硬错** |
+| `delivery.confirm` | write | `deliveryNo` | 扣库存并**同步释放 reserved**；订单 → `PARTIALLY_SHIPPED` 或 `SHIPPED` |
 | `delivery.query` | read | 无 | 查出货记录 |
 | `inventory.query` | read | 无 | 按产品/仓库查库存 |
 | `inventory.reserve` | write | `productId` `warehouseId` `qty` | 增加 `Inventory.reserved` |
@@ -24,14 +24,17 @@
 | 字段 | 槽位 | resolution | 必填 | 推断 |
 |---|---|---|---|---|
 | `customerId` | `customer` | `fuzzy_customer` | ✅ | — |
-| `productId` | `product` | `fuzzy_product` | ✅ | — |
-| `qty` | `quantity` | `number_normalize` | ✅ | — |
+| `productId` | `product` | `fuzzy_product` | 单行必填* | — |
+| `qty` | `quantity` | `number_normalize` | 单行必填* | — |
+| `items` | `items` | `order_line_items` | 多行优先 | — |
 | `unitPrice` | `unit_price` | `lookup_price_list` | — | ✅ 客户历史成交价 → 牌价（置信度 0.6） |
 | `deliveryDate` | `delivery_date` | `date_parse` | — | — |
 | `warehouseId` | `warehouse` | `enum` | — | ✅ 客户最近订单 / 客户主数据 |
 | `currency` | `currency` | `enum` | — | 默认 CNY |
 | `remark` | `remark` | `passthrough` | — | 原话残片兜底 |
 | `originNo` | `origin_no` | `order_lookup` | — | **变更单专用** |
+
+\* 有非空 `items[]` 时，API / interpret 不再强求 `productId`/`qty`（表单单行字段仍可用于手工录入）。
 
 ### `order.confirm` 字段
 
@@ -44,8 +47,15 @@
 | 字段 | 说明 |
 |---|---|
 | `orderNo` | 已确认 / 部分出货订单 |
-| `qty` | **可选**；仅当订单**单行**时作部分出货数量；多行时忽略标量 `qty`，按各行剩余量出货 |
+| `qty` | **可选**；**仅单行订单**作部分出货；**多行订单传标量 qty → 硬错**（禁止静默出全部剩余）；省略则按各行剩余量出货 |
 | `warehouseId` / `remark` | 可选 |
+
+### 预留与出货
+
+| 规则 | 说明 |
+|---|---|
+| `inventory.reserve` | 增加 `Inventory.reserved`（PoC：**未**按 orderId 分账本） |
+| `delivery.confirm` | 扣 `qty` 同时 `reserved -= min(reserved, 出货量)`，避免预留后再出货导致 available 凭空变少 |
 
 ---
 

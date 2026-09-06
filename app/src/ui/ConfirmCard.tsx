@@ -49,6 +49,8 @@ function buildFormSchema(rawSchema: any, slots: SlotResult[]): any {
 
   const properties: Record<string, any> = {}
   for (const [field, def] of Object.entries<any>(rawSchema.properties ?? {})) {
+    // 隐藏字段（如多行 items）不进确认表单；仍由 slots → args 带入执行
+    if (def['x-hidden']) continue
     const slot = slotByField.get(field)
     const meta = slot ? sourceMeta(slot) : null
 
