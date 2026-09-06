@@ -2,13 +2,22 @@
 
 ---
 
-## 一、已实现的 3 个动词
+## 一、已实现的 12 个动词
 
 | 动词 | 风险 | 必填 | 说明 |
 |---|---|---|---|
 | `order.query` | read | 无 | 查询订单，按客户/状态/单号关键字过滤，默认 10 条 |
 | `order.create` | write | `customerId` `productId` `qty` | 建单；**支持修订与变更两种模式** |
 | `order.confirm` | write | `orderNo` | 草稿 → 已确认；非草稿拒绝 |
+| `order.cancel` | write | `orderNo` `reason` | 取消；`SHIPPED` 拒绝 |
+| `delivery.create` | write | `orderNo` | 从 `CONFIRMED` / `PARTIALLY_SHIPPED` 生成出货草稿；可选 `qty`（单行部分出货） |
+| `delivery.confirm` | write | `deliveryNo` | 扣库存；订单 → `PARTIALLY_SHIPPED` 或 `SHIPPED` |
+| `delivery.query` | read | 无 | 查出货记录 |
+| `inventory.query` | read | 无 | 按产品/仓库查库存 |
+| `inventory.reserve` | write | `productId` `warehouseId` `qty` | 增加 `Inventory.reserved` |
+| `inventory.release` | write | `productId` `warehouseId` `qty` | 释放预留 |
+| `customer.query` | read | 无 | 客户与信用额度 |
+| `credit.check` | read | `customerId` | 单笔信用检查（可读可选金额） |
 
 ### `order.create` 字段全表
 
@@ -30,6 +39,14 @@
 |---|---|---|
 | `orderNo` | `order_no` | 要确认的订单号 |
 
+### `delivery.create` 要点
+
+| 字段 | 说明 |
+|---|---|
+| `orderNo` | 已确认 / 部分出货订单 |
+| `qty` | **可选**；仅当订单**单行**时作部分出货数量；多行时忽略标量 `qty`，按各行剩余量出货 |
+| `warehouseId` / `remark` | 可选 |
+
 ---
 
 ## 二、业务规则（L4）
@@ -40,12 +57,46 @@
 | `min_order_amount` | **block** | 金额低于起订额 | 拒绝建单 |
 | `price_floor` | **confirm** | 单价低于产品底线价 | 放行但需人确认 |
 | `inventory` | **warn** | 库存不足 | 放行但告警 |
+| `shipping_over` | **block** | 出货数量 > 订单行剩余可出 | 拒绝创建/confirm（硬拦） |
+| `shipping_partial` | — | 确认出货后仍有剩余 | 订单 → `PARTIALLY_SHIPPED`；全部出完 → `SHIPPED` |
 
-> 已验证：四类规则都能触发（见 `05_TEST_LOG.md`）。
+> 信用 / 起订 / 底价 / 库存：见 `05_TEST_LOG.md`。  
+> 出货剩余量 / 超量硬拦：`scripts/smoke-delivery-remaining.ts` 已验。  
+> **注意**：`creditUsed` 占用策略以 `04_DECISIONS.md` 为准（确认占用 / 草稿不占）；档案与代码若曾不一致，以代码+决策表收口后的实现为准。
 
 ---
 
-## 三、★ 变更单机制（本项目最容易做错的地方）
+## 三、★ 订单状态机（含部分出货）
+
+合法状态：`DRAFT` | `CONFIRMED` | `PARTIALLY_SHIPPED` | `SHIPPED` | `CANCELLED` | `SUPERSEDED`
+
+```
+DRAFT ──confirm──▶ CONFIRMED ──部分出货确认──▶ PARTIALLY_SHIPPED ──剩余出完──▶ SHIPPED
+  │                    │                              │
+  │ cancel             │ cancel                       │ （一般不再 cancel；以 handler 为准）
+  ▼                    ▼                              │
+CANCELLED          CANCELLED                          │
+                       │                              │
+                       │ 变更（另开新单）                │
+                       ▼                              │
+                  SUPERSEDED ◀── 原单被变更冻结 ────────┘
+```
+
+| 转移 | 动词 / 条件 |
+|---|---|
+| `DRAFT` → `CONFIRMED` | `order.confirm` |
+| `DRAFT` → `CANCELLED` | `order.cancel` |
+| `CONFIRMED` → `CANCELLED` | `order.cancel`（`SHIPPED` 拒绝） |
+| `CONFIRMED` / `PARTIALLY_SHIPPED` → 出货草稿 | `delivery.create`（不改订单状态） |
+| 出货确认后仍有剩余 | `delivery.confirm` → `PARTIALLY_SHIPPED` |
+| 出货确认后无剩余 | `delivery.confirm` → `SHIPPED` |
+| `CONFIRMED` / `SHIPPED` → `SUPERSEDED` | `order.create` 变更模式（另开新单） |
+
+剩余量计算：`remaining.ts` = 订单行 qty − 已确认出货单同产品 qty 之和。
+
+---
+
+## 四、★ 变更单机制（本项目最容易做错的地方）
 
 ### 语义（Owner 两次纠正后定稿）
 
@@ -57,7 +108,7 @@
 | 场景 | 原单状态 | 操作 | 数据变化 |
 |---|---|---|---|
 | 修订 | `DRAFT` | 原地更新 | 同一张单号，字段被覆盖；另起一格记录 |
-| 变更 | `CONFIRMED` / `SHIPPED` | **另开新单** | 新单号；原单冻结；两单互指 |
+| 变更 | `CONFIRMED` / `SHIPPED` / `PARTIALLY_SHIPPED` | **另开新单** | 新单号；原单冻结；两单互指 |
 | 确认 | `DRAFT` | `order.confirm` | DRAFT → CONFIRMED |
 
 ### 三个串联字段
@@ -90,7 +141,7 @@
 
 ---
 
-## 四、格子（Panel）不可变规则
+## 五、格子（Panel）不可变规则
 
 | 规则 | 说明 |
 |---|---|
@@ -102,7 +153,7 @@
 
 ---
 
-## 五、API 全量路由表
+## 六、API 全量路由表
 
 | 方法 | 路径 | 作用 |
 |---|---|---|
@@ -118,8 +169,15 @@
 | POST | `/api/panels/:id/revise` | 预填修订/变更（不写库） |
 | GET | `/api/panels/:id/chain` | 按关联键取完整链路 |
 | DELETE | `/api/panels` | 清空画布（PoC 专用） |
+| GET | `/api/sessions` | 会话列表 |
 | GET | `/api/settings` | 模型配置（**Key 以掩码返回**） |
 | PUT | `/api/settings` | 保存模型配置 → `.env.local`，立即生效 |
 | POST | `/api/settings/test` | 连通性测试（返回服务端原始错误） |
+| GET | `/api/lexicon` | 个人用语表列表（`userId` / `status` 可选） |
+| POST | `/api/lexicon` | upsert 一条用语（`phrase` + `kind` 必填） |
+| POST | `/api/lexicon/:id/reject` | 标 `rejected`，停止再提议 |
+| DELETE | `/api/lexicon/:id` | 软删 → `retired` |
+| POST | `/api/lexicon/propose` | 根据确认结果生成「是否记住」提议（**不入库**） |
 
-> **注意**：这里没有 `/api/orders`。这是刻意的 —— 能力由动词表达，不由 REST 资源表达。
+> **注意**：这里没有 `/api/orders`。这是刻意的 —— 能力由动词表达，不由 REST 资源表达。  
+> 用语表契约详见 `11_PERSONAL_LEXICON.md`。

@@ -13,13 +13,13 @@
 | 3 | 日期消解 | 「下周三」 | → 2026-09-09（基于 today 计算） |
 | 4 | 中文数字归一 | 「一百二十」 | → 120 |
 | 5 | 重名歧义 | 「给张来50个B-200」 | 弹出候选，不自动选中 |
-| 6 | 业务规则 · 信用额度 | 超额下单 | block，拒绝建单 |
+| 6 | 业务规则 · 信用额度 | 超额下单 | ⚠️ **假阳性**：规则能 block，但确认后未真正占用 `creditUsed`（Wave 2 收口前） |
 | 7 | 业务规则 · 起订额 | 小额下单 | block |
 | 8 | 业务规则 · 价格底线 | 低于底价 | confirm，放行但需确认 |
 | 9 | 业务规则 · 库存 | 库存不足 | warn |
 | 10 | 画布闭环 | 建单 → 确认 → 变更 | 原单冻结，新单生成，链正确 |
 | 11 | 变更链追溯 | `/api/panels/:id/chain` | 返回完整链路 |
-| 12 | 3 动词注册 | `/api/health`、`/api/verbs` | 3 个动词，参数与必填正确 |
+| 12 | 12 动词注册 | `/api/health`、`/api/verbs` | **12** 个动词，参数与必填正确 |
 | 13 | 设置面板读写 | `GET/PUT /api/settings` | Key 掩码回传，写入 `.env.local` 立即生效 |
 | 14 | 连通性诊断 | 假 Key 测 `POST /api/settings/test` | 返回 `HTTP 401` + 服务端原始错误 |
 | 15 | **失败静默回落** | 假 Key 下 `POST /api/interpret` | `engine:"rules"`，业务正常，附 `llm.error` |
@@ -98,13 +98,19 @@ curl -s -X PUT localhost:3001/api/settings -H 'Content-Type: application/json' \
 
 ---
 
-## 四、数据库当前状态（2026-09-06 20:30 实测）
+## 四、数据库当前状态（2026-09-06 起 · 与 schema 对齐）
 
-| 表 | 数量 |
+| 表 | 数量 / 状态 |
 |---|---|
-| Customer | 4 |
-| Product | 3 |
-| Order | 4（`SO-2026-1001` SHIPPED / `1002` CONFIRMED / `1003` CONFIRMED / `1004` DRAFT） |
-| Panel | 0（画布已清空） |
+| Customer | 4（种子） |
+| Product | 3（种子） |
+| Order | 4（种子：`SO-2026-1001` SHIPPED / `1002` CONFIRMED / `1003` CONFIRMED / `1004` DRAFT；运行后可出现 `PARTIALLY_SHIPPED`） |
+| OrderItem | 随订单 |
+| Inventory | 种子库存；含 `reserved` |
+| **Delivery** | ✅ 已建表；出货冒烟会写入草稿/已确认出货单 |
+| **DeliveryItem** | ✅ 已建表 |
+| **PersonalLexeme** | ✅ 已建表；用语评测/画布「记住」写入；`status`: active / rejected / retired |
+| Panel | 运行时可变（清空后为 0） |
 
-> 种子数据见 `app/prisma/seed.ts`。重置：`npm run db:push && npm run db:seed`。
+> 种子数据见 `app/prisma/seed.ts`。重置：`npm run db:push && npm run db:seed`。  
+> 表清单以 `app/prisma/schema.prisma` 为准（含 Delivery / PersonalLexeme）。

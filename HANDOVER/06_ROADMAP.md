@@ -32,13 +32,16 @@
 
 | # | 检查项 | 完成标准 |
 |---|---|---|
+| 0 | **干净树** | 动工前 `git status` 干净（或先 commit 当前落地）；结束再 commit |
 | 1 | 辨认类型 | 新动词 / 加深已有规则 / 用语·消解 三选一 |
 | 2 | Schema | `app/src/schema/<verb>.json` 含完整 `x-agent` |
 | 3 | Handler | `app/src/server/verbs/<verb>.ts` + `registry.ts` 注册 |
 | 4 | 前端 | **零改**（确认卡由 Formily 渲染）；仅用语入口可改 ConfirmCard |
 | 5 | 评测 | `app/eval/utterances.jsonl` 补 3–5 条口吻；`npm run eval` |
 | 6 | 档案 | 更新 `05_TEST_LOG.md`；动词规格改 `03_VERBS.md`；决策改 `04_DECISIONS.md` |
-| 7 | 红线 | 写操作必经确认卡；模型只出原话片段；不扩采购/财务/权限 |
+| 7 | 类型检查 | `npm run typecheck`（`tsc --noEmit`）通过 |
+| 8 | **状态枚举同步** | 状态机变更须扫全部 schema 的 `status` enum（含 `order.query`）与 `STATUS_ALIASES` / `STATUS_LABEL` |
+| 9 | 红线 | 写操作必经确认卡；模型只出原话片段；不扩采购/财务/权限 |
 
 **开工三问（给 Agent / 自己）：**
 1. 要加的是新动词、加深规则，还是用语/消解？

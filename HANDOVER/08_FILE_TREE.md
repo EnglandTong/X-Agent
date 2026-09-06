@@ -11,6 +11,13 @@
 | `src/schema/order.create.json` | 163 | 建单 Schema：9 个字段，含 `originNo`（变更单） |
 | `src/schema/order.query.json` | 79 | 查询 Schema：4 个字段，无必填 |
 | `src/schema/order.confirm.json` | 28 | 确认 Schema：`orderNo` |
+| `src/schema/order.cancel.json` | — | 取消 |
+| `src/schema/delivery.create.json` | — | 出货草稿（可选 `qty` 部分出货） |
+| `src/schema/delivery.confirm.json` | — | 确认出货 |
+| `src/schema/delivery.query.json` | — | 查出货 |
+| `src/schema/inventory.*.json` | — | 查询 / 预留 / 释放 |
+| `src/schema/customer.query.json` | — | 客户查询 |
+| `src/schema/credit.check.json` | — | 信用检查 |
 
 **改字段 = 改这里**。UI 与模型同时生效，不用改前端代码。
 
@@ -34,6 +41,30 @@
 | `server/verbs/order.create.ts` | 232 | 建单 + 修订 + 变更三种模式 + 业务规则 | 最复杂的动词 |
 | `server/verbs/order.query.ts` | 65 | 查询 | |
 | `server/verbs/order.confirm.ts` | 50 | DRAFT → CONFIRMED | |
+| `server/verbs/order.cancel.ts` | — | 取消 | |
+| `server/verbs/delivery.*.ts` | — | 出货创建/confirm/query | 剩余量见 remaining.ts |
+| `server/verbs/inventory.*.ts` | — | 库存 query/reserve/release | |
+| `server/verbs/customer.query.ts` | — | 客户 | |
+| `server/verbs/credit.check.ts` | — | 信用检查 | |
+
+---
+
+## 二-b、脚本与评测
+
+| 文件 | 职责 |
+|---|---|
+| `scripts/eval-interpret.ts` | 主评测：`npm run eval` |
+| `scripts/eval-lexicon.ts` | 用语表夹具：`npm run eval:lexicon` |
+| `scripts/eval-compare-models.ts` | 云端 vs 本地对比：`npm run eval:compare` |
+| `scripts/smoke-delivery-remaining.ts` | 部分出货 / 超量硬拦冒烟（断言 + 非 0 退出） |
+| `scripts/smoke-verbs.ts` | 12 动词冒烟 |
+| `scripts/trial-10-utterances.ts` | API 真链路 10 条：`npm run trial:10` |
+| `eval/utterances.jsonl` | 主评测样本 |
+| `eval/utterances.lexicon.jsonl` | 用语夹具样本 |
+| `eval/BASELINE.md` | 准确率基线 |
+| `eval/COMPARE_MODELS.md` | 对比说明 |
+| `eval/failures.jsonl` | 错例 |
+| `eval/results/*` | 评测产物（compare-models / latest / summary） |
 
 ---
 
@@ -57,7 +88,7 @@
 
 | 文件 | 行 | 职责 |
 |---|---|---|
-| `prisma/schema.prisma` | 109 | 6 张表；Order 含变更单三件套；Panel 含不可变约定 |
+| `prisma/schema.prisma` | — | 表含 Order/Delivery/PersonalLexeme 等；Order 含变更单三件套与 `PARTIALLY_SHIPPED` |
 | `prisma/seed.ts` | 98 | 种子数据：4 客户 / 3 产品 / 4 订单 / 库存 |
 | `.env.example` | — | 模板（**不含密钥**） |
 | `.env.local` | — | 模型 Key（**gitignore，未进版本库**） |

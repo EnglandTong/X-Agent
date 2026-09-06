@@ -68,6 +68,7 @@
 
 | P | 事项 | 验收标准 |
 |---|---|---|
+| **P0** | **先 commit / 干净树**：`git status` 无未提交落地改动（或按 Owner 确认 commit） | 工作树干净后再开下一波 |
 | **P0** | 让 Owner 填火山 API Key，「保存并测试」后跑 `npm run eval` | 模型列有数字；对比表更新 BASELINE |
 | **P1** | Owner 画布跑 10 条真口吻（开单→确认→部分出货→记住说法） | 手感稳定；错例进 failures |
 | **P1** | 配本地小模型后 `npm run eval:compare`（勿设 SKIP_CLOUD） | `compare-models.md` 含 cloud+local |
@@ -95,7 +96,7 @@
 | `00_START_HERE.md` | 本文件：状态 + 红线 + 下一步 | 每次接手先读 |
 | `01_VISION.md` | 产品哲学、命题、明确不做的事 | 第一次读 |
 | `02_ARCHITECTURE.md` | 五层架构、x-agent 协议、数据模型 | 写代码前 |
-| `03_VERBS.md` | 3 个动词规格、业务规则、变更单机制 | 写动词前 |
+| `03_VERBS.md` | **12 个动词**规格、业务规则、状态机、变更单、API（含 `/api/lexicon`） | 写动词前 |
 | `04_DECISIONS.md` | 决策日志（含被否决方案与 Owner 纠正） | **必读**，避免重蹈覆辙 |
 | `05_TEST_LOG.md` | 已验证 / 未验证 / 复现命令 | 改完代码要回归时 |
 | `06_ROADMAP.md` | 12 动词全景、W1-Wn、节点 | 排期时 |

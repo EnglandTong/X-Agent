@@ -20,23 +20,43 @@
                             │ 确认后 POST /api/verbs/:name/run
 ┌───────────────────────────▼─────────────────────────────────┐
 │ L3  动词层           verbs/*.ts + registry.ts                │
-│     order.query / order.create / order.confirm               │
+│     12 动词：order.* / delivery.* / inventory.* /             │
+│     customer.query / credit.check                             │
 │     执行前必填校验 → 执行 → 业务规则检查                      │
 └───────────────────────────┬─────────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────┐
-│ L4  领域规则层       信用额度 / 起订额 / 价格底线 / 库存      │
+│ L4  领域规则层       信用 / 起订 / 底价 / 库存 / 出货剩余量   │
 │     block（拦截）· confirm（提醒但可继续）· warn              │
 └───────────────────────────┬─────────────────────────────────┘
                             │
 ┌───────────────────────────▼─────────────────────────────────┐
 │ L5  数据层           Prisma + SQLite（可切 PostgreSQL）       │
-│     Customer Product Inventory Order OrderItem Panel         │
+│     Customer Product Inventory Order OrderItem               │
+│     Delivery DeliveryItem Panel PersonalLexeme               │
 └─────────────────────────────────────────────────────────────┘
 ```
 
 **关键约束**：依赖只能从上往下。L2 不认识 L5 的表结构（通过 Prisma 注入），
 L3 不认识 HTTP。任何一层向上调用都是设计错误。
+
+### 个人用语表插入点（A / B）
+
+```
+utterance
+  │
+  ├─【A】agent.ts interpret()：detectVerb 之前
+  │      lookupVerb → 命中则固定 verb（kind=verb）
+  │
+  ├─ detectVerb / llm|rules extract
+  │
+  ├─【B】resolve.ts resolveSlot：fuzzy_* / enum 之前
+  │      lookupSlot → 命中则直接落槽（kind=slot）
+  │
+  └─ ConfirmCard → run → 可选「记住」/ propose（写 PersonalLexeme）
+```
+
+详见 `11_PERSONAL_LEXICON.md`。
 
 ---
 
@@ -128,9 +148,12 @@ L3 不认识 HTTP。任何一层向上调用都是设计错误。
 | `Customer` | `code` `name` `level` `creditLimit` `creditUsed` `lastWarehouse` | 信用与默认仓 |
 | `Product` | `model` `name` `price` `unit` | 牌价 |
 | `Inventory` | `productId` `warehouse` `qty` | 唯一键 (productId, warehouse) |
-| `Order` | `no` `status` **`originNo`** **`supersededByNo`** **`chainId`** `deliveryDate` `totalAmount` | 变更单三件套是业务关键字段 |
+| `Order` | `no` `status` **`originNo`** **`supersededByNo`** **`chainId`** `deliveryDate` `totalAmount` | 状态含 `PARTIALLY_SHIPPED`；变更单三件套 |
 | `OrderItem` | `orderId` `productId` `qty` `unitPrice` `amount` | |
+| `Delivery` | `no` `orderId` `warehouse` `status` | 出货单（DRAFT / CONFIRMED） |
+| `DeliveryItem` | `deliveryId` `productId` `qty` | |
 | `Panel` | `seq` `verb` `utterance` `slots` `args` `result` `correlationId` `entities` `supersedesId` | **画布格子 = 审计记录** |
+| `PersonalLexeme` | `userId` `phraseNorm` `phrase` `kind` `verb` `slot` `targetId` `status` | **个人用语表**（非向量）；插入点 A/B 见上文 |
 
 ### 两个易混淆的关联字段
 
@@ -160,23 +183,25 @@ agt-erp/
         ├── server/
         │   ├── index.ts         # 路由
         │   ├── compile.ts       # Schema → Tool Schema 编译器
-        │   ├── agent.ts         # 意图 + 抽取 + 消解编排
+        │   ├── agent.ts         # 意图 + 抽取 + 消解编排（插入点 A：lookupVerb）
         │   ├── llm.ts           # OpenAI 兼容客户端（含连通性诊断）
         │   ├── settings.ts      # 模型配置读写（.env.local）
-        │   ├── resolve.ts       # 消解器（确定性）
+        │   ├── resolve.ts       # 消解器（确定性；插入点 B：lookupSlot）
+        │   ├── lexicon.ts       # 个人用语表 CRUD / 匹配 / 提议
+        │   ├── remaining.ts     # 订单行剩余可出货量
         │   ├── panels.ts        # 格子记录与修订准备
-        │   └── verbs/           # 动词实现
+        │   └── verbs/           # 12 动词实现
         ├── ui/                  # 画布、卡片、设置面板
         └── types.ts             # 前后端共享类型
 ```
 
 ---
 
-## 六、Agent 循环（Pi SDK）—— 已决策但未接入
+## 六、Agent 循环（Pi SDK）—— 契约已接、编排可换
 
 **决策**：Agent 循环最终用 **Pi（pi.dev）SDK**，不用 DSH。
 **约束**：**禁用 Pi 内置的 `read` / `write` / `edit` / `bash` 工具** ——
 本系统的 Agent 只能调用**业务动词**，不能直接碰文件系统和 shell。
 
-当前 Pi 尚未接入，Agent 编排逻辑直接写在 `agent.ts` 里（意图 → 抽取 → 消解 → 推断）。
-接入 Pi 时，这一层的**输入输出契约不变**，只是把编排交给 Pi 的循环。
+当前：`agent.ts` 直接编排（含用语表插入点 A）；另有 `piAgent.ts` 风格循环，契约与 `/api/interpret` 对齐。
+接入更深 Pi 时，**输入输出契约不变**，只换编排壳。
