@@ -57,9 +57,20 @@ export const orderCreate: Verb = {
 
     const totalAmount = Math.round(qty * unitPrice * 100) / 100
 
+    // 变更时：原单若已占用额度，建草稿检查可把原单金额加回可用（落库时释放）
+    const OCCUPYING = new Set(['CONFIRMED', 'PARTIALLY_SHIPPED', 'SHIPPED'])
+    let originForChange: Awaited<ReturnType<typeof db.order.findFirst>> = null
+    let creditRelief = 0
+    if (originNoInput) {
+      originForChange = await db.order.findFirst({ where: { no: originNoInput } })
+      if (originForChange && OCCUPYING.has(originForChange.status)) {
+        creditRelief = originForChange.totalAmount
+      }
+    }
+
     // ------------------------------------------------ postcheck: 业务规则
-    // 1) 信用额度：block
-    const remain = customer.creditLimit - customer.creditUsed
+    // 1) 信用额度：block（DRAFT 不占用；此处只预检「确认后是否够」）
+    const remain = customer.creditLimit - customer.creditUsed + creditRelief
     if (totalAmount > remain) {
       issues.push({
         level: 'block',
@@ -127,7 +138,7 @@ export const orderCreate: Verb = {
 
     if (originNoInput) {
       // ---------- 模式 A：变更单 ----------
-      const origin = await db.order.findFirst({ where: { no: originNoInput } })
+      const origin = originForChange ?? (await db.order.findFirst({ where: { no: originNoInput } }))
       if (!origin) {
         return { ok: false, message: `原单 ${originNoInput} 不存在。`, issues: [] }
       }
@@ -144,6 +155,7 @@ export const orderCreate: Verb = {
 
       mode = 'change'
       originNo = origin.no
+      originForChange = origin
       // 变更链：继承原单的链根，没有则以原单号为根 —— 这让整条变更链共享一个 chainId
       chainId = origin.chainId ?? origin.no
     } else if (revising) {
@@ -195,11 +207,26 @@ export const orderCreate: Verb = {
         include: { customer: true, items: { include: { product: true } } },
       })
 
-      // 原单反向指回新单并冻结 —— 两单各自独立存在，谁都没被改写
-      if (mode === 'change' && originNo) {
-        await db.order.update({
-          where: { no: originNo },
-          data: { status: 'SUPERSEDED', supersededByNo: order.no },
+      // 原单反向指回新单并冻结；若原单曾占用额度则释放（新单为 DRAFT，确认时再占用）
+      if (mode === 'change' && originNo && originForChange) {
+        await db.$transaction(async (tx: any) => {
+          await tx.order.update({
+            where: { no: originNo },
+            data: { status: 'SUPERSEDED', supersededByNo: order.no },
+          })
+          if (OCCUPYING.has(originForChange!.status) && originForChange!.totalAmount > 0) {
+            const cust = await tx.customer.findUnique({
+              where: { id: originForChange!.customerId },
+            })
+            if (cust) {
+              await tx.customer.update({
+                where: { id: originForChange!.customerId },
+                data: {
+                  creditUsed: Math.max(0, cust.creditUsed - originForChange!.totalAmount),
+                },
+              })
+            }
+          }
         })
       }
     }

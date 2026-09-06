@@ -143,7 +143,7 @@ export async function lookupSlot(
   userId = 'owner'
 ): Promise<LexemeHit | null> {
   const q = phraseNorm(raw)
-  if (!q || q.length < 1) return null
+  if (!q) return null
 
   const rows = await db.personalLexeme.findMany({
     where: { userId, status: 'active', kind: 'slot', slot },
@@ -157,6 +157,9 @@ export async function lookupSlot(
     return toHit(exact[0], 0.98)
   }
   if (exact.length > 1) return null
+
+  // 非精确命中：query 与词条 phraseNorm 均须 ≥2，避免单字误绑
+  if (q.length < 2) return null
 
   const scored = rows
     .map((r) => ({ row: r, score: similarity(raw, r.phrase) }))

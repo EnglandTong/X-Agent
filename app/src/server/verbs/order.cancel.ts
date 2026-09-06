@@ -33,10 +33,25 @@ export const orderCancel: Verb = {
       }
     }
 
-    const updated = await db.order.update({
-      where: { id: order.id },
-      data: { status: 'CANCELLED', cancelReason: reason, remark: order.remark },
-      include: { customer: true },
+    // CONFIRMED 曾占用额度 → 取消时释放；DRAFT 从未占用
+    const releaseCredit = order.status === 'CONFIRMED'
+
+    const updated = await db.$transaction(async (tx: any) => {
+      const o = await tx.order.update({
+        where: { id: order.id },
+        data: { status: 'CANCELLED', cancelReason: reason, remark: order.remark },
+        include: { customer: true },
+      })
+      if (releaseCredit && order.totalAmount > 0) {
+        const cust = await tx.customer.findUnique({ where: { id: order.customerId } })
+        if (cust) {
+          await tx.customer.update({
+            where: { id: order.customerId },
+            data: { creditUsed: Math.max(0, cust.creditUsed - order.totalAmount) },
+          })
+        }
+      }
+      return o
     })
 
     return {
@@ -47,8 +62,11 @@ export const orderCancel: Verb = {
         statusRaw: updated.status,
         reason,
         customer: updated.customer.name,
+        creditReleased: releaseCredit,
       },
-      message: `订单 ${updated.no} 已取消。原因：${reason}`,
+      message: releaseCredit
+        ? `订单 ${updated.no} 已取消，已释放信用占用。原因：${reason}`
+        : `订单 ${updated.no} 已取消。原因：${reason}`,
       issues: [],
     }
   },

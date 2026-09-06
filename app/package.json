@@ -15,6 +15,7 @@
     "eval:lexicon": "tsx scripts/eval-lexicon.ts",
     "eval:compare": "tsx scripts/eval-compare-models.ts",
     "trial:10": "tsx scripts/trial-10-utterances.ts",
+    "typecheck": "tsc --noEmit",
     "setup": "prisma generate && prisma db push --skip-generate && tsx prisma/seed.ts"
   },
   "dependencies": {

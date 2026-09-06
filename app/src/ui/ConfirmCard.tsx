@@ -167,22 +167,18 @@ export function ConfirmCard({
       s.value != null
   )
 
-  async function rememberPhrase() {
+  const verbPhrase = utterance?.trim() ?? ''
+  const canRememberVerb = verbPhrase.length >= 2 && verbPhrase.length <= 16
+
+  /** 默认：只记槽位 raw（客户/产品） */
+  async function rememberSlots() {
+    if (!rememberableSlots.length) {
+      message.info('没有可记住的客户/产品说法')
+      return
+    }
     const values = { ...form.values }
     setRemembering(true)
     try {
-      if (utterance?.trim()) {
-        await fetch('/api/lexicon', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            phrase: utterance.trim(),
-            kind: 'verb',
-            verb,
-            source: 'explicit',
-          }),
-        })
-      }
       for (const s of rememberableSlots) {
         const targetId = values[s.field] ?? s.value
         if (targetId == null || targetId === '') continue
@@ -200,7 +196,33 @@ export function ConfirmCard({
           }),
         })
       }
-      message.success('已记住这些说法')
+      message.success('已记住客户/产品说法')
+    } catch (e: any) {
+      message.error(String(e?.message ?? e))
+    } finally {
+      setRemembering(false)
+    }
+  }
+
+  /** 可选：短句记为动词说法（≤16 字，避免整句垃圾） */
+  async function rememberAsVerb() {
+    if (!canRememberVerb) {
+      message.info('开单说法须为 2–16 个字')
+      return
+    }
+    setRemembering(true)
+    try {
+      await fetch('/api/lexicon', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          phrase: verbPhrase,
+          kind: 'verb',
+          verb,
+          source: 'explicit',
+        }),
+      })
+      message.success('已记住为开单说法')
     } catch (e: any) {
       message.error(String(e?.message ?? e))
     } finally {
@@ -285,16 +307,29 @@ export function ConfirmCard({
       <Divider style={{ margin: '12px 0' }} />
 
       <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
-        <Button
-          size="small"
-          type="link"
-          loading={remembering}
-          disabled={submitting || (!utterance?.trim() && !rememberableSlots.length)}
-          onClick={rememberPhrase}
-          title="把当前说法写入个人用语表"
-        >
-          记住这个说法
-        </Button>
+        <Space size={0} wrap>
+          <Button
+            size="small"
+            type="link"
+            loading={remembering}
+            disabled={submitting || !rememberableSlots.length}
+            onClick={rememberSlots}
+            title="只记住客户/产品槽位说法"
+          >
+            记住这个说法
+          </Button>
+          <Button
+            size="small"
+            type="link"
+            loading={remembering}
+            disabled={submitting || !canRememberVerb}
+            onClick={rememberAsVerb}
+            title="把短句（≤16字）记为动词说法"
+            style={{ color: '#8c8c8c' }}
+          >
+            记住为开单说法
+          </Button>
+        </Space>
         <Space>
           <Button onClick={onCancel} disabled={submitting}>
             取消

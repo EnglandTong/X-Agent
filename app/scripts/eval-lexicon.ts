@@ -13,7 +13,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { compile } from '../src/server/compile'
 import { interpret } from '../src/server/agent'
-import { upsertLexeme, phraseNorm } from '../src/server/lexicon'
+import { upsertLexeme, phraseNorm, proposeFromConfirm, rejectLexeme } from '../src/server/lexicon'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '..')
@@ -124,6 +124,40 @@ async function main() {
     )
   }
 
+  // 回归：reject 后再 propose，不得再弹出同一说法
+  const rejectRow = await upsertLexeme(prisma, {
+    phrase: '老王',
+    kind: 'slot',
+    slot: 'customer',
+    targetId: zhang.id,
+    targetLabel: `${zhang.name}（${zhang.code}）`,
+    source: 'explicit',
+  })
+  await rejectLexeme(prisma, rejectRow.id)
+  const proposals = await proposeFromConfirm(prisma, {
+    utterance: '给老王来10个A-100',
+    verb: 'order.create',
+    slots: [
+      {
+        slot: 'customer',
+        field: 'customerId',
+        raw: '老王',
+        value: null,
+        label: zhang.name,
+        candidates: [{ id: zhang.id, label: zhang.name }],
+      },
+    ],
+    submittedValues: { customerId: zhang.id },
+  })
+  const rejectProposeOk = !proposals.some(
+    (p) => p.kind === 'slot' && p.slot === 'customer' && phraseNorm(p.phrase) === phraseNorm('老王')
+  )
+  if (rejectProposeOk) pass++
+  console.log(
+    `${rejectProposeOk ? '✓' : '✗'} L-reject propose empty after reject (got ${proposals.length})`
+  )
+  const totalCases = cases.length + 1
+
   // 清理夹具，避免污染日常
   await prisma.personalLexeme.deleteMany({
     where: {
@@ -135,9 +169,9 @@ async function main() {
     },
   })
 
-  console.log(`\n个人用语夹具：${pass}/${cases.length} 通过`)
+  console.log(`\n个人用语夹具：${pass}/${totalCases} 通过`)
   await prisma.$disconnect()
-  process.exit(pass === cases.length ? 0 : 1)
+  process.exit(pass === totalCases ? 0 : 1)
 }
 
 main().catch((e) => {
