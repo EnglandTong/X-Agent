@@ -340,6 +340,8 @@ export async function proposeFromConfirm(
     const phrase = String(s.raw).trim()
     const key = `slot|${s.slot}|${phraseNorm(phrase)}`
     if (rejectedSet.has(key)) continue
+    // 标准名不提议：本来就认得（如「张三」→张三），记进词表只会制造噪音
+    if (await isStandardTerm(db, phrase, s.slot)) continue
 
     out.push({
       phrase,
@@ -352,4 +354,32 @@ export async function proposeFromConfirm(
   }
 
   return out
+}
+
+/**
+ * 标准名不需要记 —— 系统本来就认得，记进个人用语表只会制造噪音。
+ *
+ * 真实案例（T1 时 Owner 亲手点出来的）：说「给张三来30个标准件B型」点「记住」，
+ * 会同时把「张三」也写进词表 —— 但「张三」是客户主数据的标准名，fuzzy 本来就命中，
+ * 记了既无收益，又会在词表里堆满无意义的行。
+ *
+ * 判定范围：客户的 name / code，产品的 model / name（归一化后比较）。
+ */
+export async function isStandardTerm(
+  db: PrismaClient,
+  phrase: string,
+  slot: string
+): Promise<boolean> {
+  const pn = phraseNorm(phrase)
+  if (!pn || pn.length < 2) return false
+
+  if (slot === 'customer') {
+    const rows = await db.customer.findMany({ select: { name: true, code: true } })
+    return rows.some((r) => phraseNorm(r.name) === pn || phraseNorm(r.code) === pn)
+  }
+  if (slot === 'product') {
+    const rows = await db.product.findMany({ select: { model: true, name: true } })
+    return rows.some((r) => phraseNorm(r.model) === pn || phraseNorm(r.name) === pn)
+  }
+  return false
 }

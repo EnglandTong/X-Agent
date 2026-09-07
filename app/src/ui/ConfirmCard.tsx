@@ -147,6 +147,8 @@ export function ConfirmCard({
    */
   const [remembered, setRemembered] = useState<string[]>([])
   const [rememberError, setRememberError] = useState<string | null>(null)
+  /** 被挡下的标准名（不是失败，要如实说明「本来就认得，不用记」） */
+  const [skippedNotes, setSkippedNotes] = useState<string[]>([])
 
   const initialValues = useMemo(() => {
     const v: Record<string, unknown> = {}
@@ -190,6 +192,7 @@ export function ConfirmCard({
     setRemembering(true)
     setRememberError(null)
     const done: string[] = []
+    const skipped: string[] = []
     try {
       for (const s of rememberableSlots) {
         const targetId = values[s.field] ?? s.value
@@ -209,8 +212,14 @@ export function ConfirmCard({
         })
         if (!r.ok) throw new Error(`「${String(s.raw).trim()}」写入失败：HTTP ${r.status}`)
         const j = await r.json()
+        // 标准名被后端挡下：不是失败，要说清楚「本来就认得」
+        if (j?.skipped === 'standard_term') {
+          skipped.push(`“${String(s.raw).trim()}” ${j.reason ?? '本来就是标准名'}`)
+          continue
+        }
         done.push(`“${String(s.raw).trim()}” → ${j?.lexeme?.targetLabel ?? s.label ?? '已存'}`)
       }
+      if (skipped.length) setSkippedNotes((prev) => [...prev, ...skipped])
       if (!done.length) {
         setRememberError('客户/产品还没有选定，记住不了')
         return
@@ -388,13 +397,23 @@ export function ConfirmCard({
       </Space>
 
       {/* 记住的结果就地说明 —— 全局 toast 会一闪而过，写入有没有成功必须由卡片自己回答 */}
-      {(remembered.length > 0 || rememberError) && (
+      {(remembered.length > 0 || rememberError || skippedNotes.length > 0) && (
         <div style={{ marginTop: 8, fontSize: 11, lineHeight: 1.9 }}>
           {remembered.length > 0 && (
             <div style={{ color: '#389e0d' }}>
               已记进个人用语表（下次直接认）：
               {remembered.map((t, i) => (
                 <Tag key={i} color="green" style={{ fontSize: 10, margin: '0 4px 2px 0' }}>
+                  {t}
+                </Tag>
+              ))}
+            </div>
+          )}
+          {skippedNotes.length > 0 && (
+            <div style={{ color: '#8c8c8c' }}>
+              没记（不需要）：
+              {skippedNotes.map((t, i) => (
+                <Tag key={i} style={{ fontSize: 10, margin: '0 4px 2px 0' }}>
                   {t}
                 </Tag>
               ))}

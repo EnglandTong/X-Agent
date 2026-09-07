@@ -38,6 +38,7 @@ import {
   rejectLexeme,
   retireLexeme,
   proposeFromConfirm,
+  isStandardTerm,
 } from './lexicon'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -172,6 +173,15 @@ app.post<{
   const b = req.body ?? {}
   if (!b.phrase?.trim() || !b.kind) {
     return reply.code(400).send({ error: 'phrase 与 kind 必填' })
+  }
+  // 标准名不入库：系统本来就认得，记了只会污染词表。
+  // 返回 200 + skipped（不是错误）—— 前端必须能把「为什么不记」说清楚，否则又变成「点了没反应」。
+  if (b.kind === 'slot' && b.slot && (await isStandardTerm(prisma, b.phrase, b.slot))) {
+    return {
+      ok: false,
+      skipped: 'standard_term',
+      reason: `「${b.phrase.trim()}」本来就是标准名，系统本来就认得，不用记`,
+    }
   }
   try {
     const row = await upsertLexeme(prisma, {
