@@ -68,8 +68,8 @@
 |---|---|---|---|
 | **P0** | Owner 在设置面板填 Key 并测试通过 | 返回 `连通 · <model> · <ms>ms` | Owner 提供 Key |
 | **P0** | 建评测集（30-50 条样本话术 + 期望抽取） | ✅ `app/eval/utterances.jsonl`（50 条） | — |
-| **P0** | 跑「模型 vs 规则」对比，出准确率表 | ✅ 规则基线已出；模型待 Key | Key |
-| **P1** | 错例落库（原话 / 期望 / 实际 / 引擎） | ✅ `app/eval/failures.jsonl` | P0 |
+| **P0** | 跑「模型 vs 规则」对比，出准确率表 | ✅ **已出（2026-09-06）**：模型 **100% / 100%**，规则 **96.0% / 98.3%**（50 样本，`doubao-seed-2.0-lite`）；见 `app/eval/BASELINE.md` | — |
+| **P1** | 错例落库（原话 / 期望 / 实际 / 引擎） | ✅ `app/eval/failures.jsonl` —— **4 条**，均为 **Tag D（模型对、规则错）**：口语产品名 / 客户编码 / 部分查询口吻 | P0 |
 | **P1** | 接入 Pi 风格 Agent 循环（禁用文件/shell 工具） | ✅ `piAgent.ts`（契约同 interpret） | — |
 | **P1** | 补 `order.cancel` + `delivery.*` | ✅ | — |
 | **P1** | 补 inventory / customer / credit | ✅ 满 12 动词 | — |
@@ -78,7 +78,34 @@
 | **P3** | 换 PostgreSQL | 改 provider + url | — |
 | **P3** | 个人用语表（设计见 `11_PERSONAL_LEXICON.md`） | ✅ 已落地；`npm run eval:lexicon` | — |
 | **P3** | 出货剩余量 / 禁止超量 | ✅ `smoke-delivery-remaining.ts` | — |
-| **P3** | 云端 vs 本地小模型对比脚手架 | ✅ `npm run eval:compare` | 本地模型待配 |
+| **P3** | 云端 vs 本地小模型对比脚手架 | ✅ `npm run eval:compare` | 现阶以云端为准 |
+| **P0** | AI 骨干三件套落档 | ✅ 01/04；**大脑云端 + 语音本地** | — |
+| **P1** | 热词/CER + 本地 ASR 脚手架 | ✅ `hotwords` / `asr:cer` | 本机拉 SenseVoice |
+| **P3** | 本地 Qwen3-0.6B | 预设保留；**现阶不跑** | 机器吃得消再说 |
+| **P1** | 断网包清单 | ✅ 当前 ASR≈229MB；完整 640MB 远期 | `OFFLINE_BUNDLE.md` |
+
+---
+
+## 二附 · 语音本地 + 大脑云端（2026-09-07）
+
+| 项 | 规格 |
+|---|---|
+| 大脑（当前） | **云端**（设置面板填 Key） |
+| 本地大脑 | Qwen3-0.6B **远期可选**；现阶不要求本机运行 |
+| ASR（当前优先） | **本地** sherpa-onnx + SenseVoice int8 ~229MB |
+| 完整断网包 | ASR + 0.6B ≈640MB = **远期** |
+| 蒸馏 | 本阶段不做 |
+| 热词 | `npm run hotwords` |
+| CER | `npm run asr:cer`（权重就位后） |
+
+命令：
+
+```bash
+cd app
+npm run hotwords
+npm run asr:cer   # 需 SenseVoice 权重 + SHERPA_ASR_CMD
+# 大脑继续用云端 Key；勿为本机强拉 ollama 0.6B
+```
 
 ---
 
