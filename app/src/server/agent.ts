@@ -201,6 +201,20 @@ function digitsToArabic(s: string): string {
 }
 
 /**
+ * 抽数量之前，先把「型号 / 编码 / 单号」里的数字遮掉（**等长替换，保证索引不变**）。
+ *
+ * 不做这一步的后果（真实错例，来自 eval）：
+ *   「A-100一百个」        → 抽出 **1**（型号里的 1）
+ *   「SO-2026-1002改成150个」→ 抽出 **6**（单号里的 6）
+ *   数量错了人一眼看不出来 —— 这是会静默落错数据的缺陷。
+ */
+function maskCodes(text: string): string {
+  return text
+    .replace(/[A-Za-z]{1,6}\s*-?\s*\d{2,}/g, (s) => '▮'.repeat(s.length))
+    .replace(/\d{4}\s*[-/年]\s*\d{1,2}\s*[-/月]\s*\d{1,2}/g, (s) => '▮'.repeat(s.length))
+}
+
+/**
  * 从话术抽出多行「型号 + 数量」。
  * 例：「100个A-100和200个B-200」「A-100×50，B-200 30个」
  */
@@ -209,6 +223,8 @@ function extractOrderLines(
   dict: ExtractDict
 ): Array<{ product: string; quantity: string }> {
   const text = digitsToArabic(utterance)
+  // 数量专用文本：型号/单号/编码里的数字不参与数量匹配
+  const qtyText = maskCodes(text)
   const models: Array<{ model: string; index: number; end: number }> = []
   const modelRe = /([A-Za-z])\s*-?\s*(\d{3})/g
   let m: RegExpExecArray | null
@@ -225,8 +241,8 @@ function extractOrderLines(
       .filter((p) => p.name.length >= 2 && utterance.includes(p.name))
       .sort((a, b) => b.name.length - a.name.length)[0]
     if (!hit) return []
-    const qtyMatch = utterance.match(
-      /(\d+(?:\.\d+)?|[零一二两三四五六七八九十百千万]+)\s*(?:个|只|件|台|套|箱)?/
+    const qtyMatch = qtyText.match(
+      /(\d+(?:\.\d+)?|[零一二两三四五六七八九十百千万]+)\s*(?:个|只|件|台|套|箱|支|条)/
     )
     return qtyMatch ? [{ product: hit.model, quantity: qtyMatch[1] }] : []
   }
@@ -236,8 +252,8 @@ function extractOrderLines(
     const cur = models[i]
     const prevEnd = i === 0 ? 0 : models[i - 1].end
     const nextStart = i + 1 < models.length ? models[i + 1].index : text.length
-    const before = text.slice(prevEnd, cur.index)
-    const after = text.slice(cur.end, nextStart)
+    const before = qtyText.slice(prevEnd, cur.index)
+    const after = qtyText.slice(cur.end, nextStart)
     const qtyBefore = before.match(
       /(\d+(?:\.\d+)?|[零一二两三四五六七八九十百千万]+)\s*(?:个|只|件|台|套|箱|支|条)?\s*$/
     )
@@ -314,7 +330,8 @@ function extractSlotsRules(
       if (hit) slots.product = hit.model
     }
 
-    const qtyMatch = utterance.match(
+    // 遮掉型号/单号数字后再抽数量；量词必需 —— 否则「李四来五十个」会抽出「四」
+    const qtyMatch = maskCodes(utterance).match(
       /(\d+(?:\.\d+)?|[零一二两三四五六七八九十百千万]+)\s*(?:个|只|件|台|套|箱|支|条|pcs|PCS)/
     )
     if (qtyMatch) slots.quantity = qtyMatch[1]

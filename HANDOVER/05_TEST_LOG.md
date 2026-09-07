@@ -34,6 +34,7 @@
 | 24 | **画布渲染崩溃（UI 缺陷，T1 后被 Owner 首次真用时撞到）** | 浏览器开 `http://localhost:3001` | ❌ 旧：`ResultView` 对**所有非 `order.query` 动词**都按订单取 `data.amount`，而 `inventory.query`（`{rows:[]}`）/`credit.check`/`delivery.*` 没有该字段 → `undefined.toLocaleString()` → **整页白屏**。✅ 已修：金额统一走 `money()` 安全格式化 + 非对象 data 不按订单渲染 + 缺字段不渲染该行（见下表「已修缺陷」） |
 | 25 | **T2 · SenseVoice int8 权重就位** | `ls app/models/asr/sensevoice/` + `npm run hotwords` | ✅ `model.int8.onnx` **228.15 MB**（>200MB）；`tokens.txt` 308KB；`npm run hotwords` → **24 条**（4 客户名 + 4 客户编码 + 3 产品名 + 3 产品编码 + 3 仓库 + 7 动词词）。⏸ **CER 未实跑**：缺 sherpa-onnx 运行时 |
 | 26 | **T3 · 真口吻评测集 + 两档基线** | `npm run eval:asr`（云端）/ `BASE_URL=:3002 npm run eval:asr`（规则档） | 样本 **39 条**（要求 ≥30）；**云端 97.3%（36/37）· 规则档 78.4%（29/37）—— 差 18.9 个百分点**。规则档最弱是「出货」类（4 条全错）。分类：date 83%、其余 100%（云端档） |
+| 27 | **T4 · 数量消解收紧（真 bug）** | `npm run eval` + `npm run eval:asr`（两档） | ❌ 旧：数量正则**量词可选 + 未遮型号/单号数字** → 「给李四来五十个」抽成 **「四」**、「A-100一百个」抽成 **「1」**、「SO-2026-1002改成150个」抽成 **「6」**（会静默落错数据）。✅ 已修：`maskCodes()` 遮罩 + 量词必需。规则槽位 **91.7% → 95.0%**；模型 **100%/100%**；真口吻两档 97.3% / 78.4% 均不劣化 |
 
 ---
 
@@ -55,7 +56,10 @@
 | | 规则 | 模型（doubao-seed-2.0-lite） |
 |---|---|---|
 | 动词准确率 | 96.0% | **100%** |
-| 槽位命中率 | 98.3% | **100%** |
+| 槽位命中率 | **95.0%** | **100%** |
+
+> **2026-09-08 更正**：此处原写「规则槽位 98.3%」为旧值，实测 95.0%（T4 前是 91.7%，修掉数量误抽后升至 95.0%）。
+> 另一把尺子（真口吻 39 条）：云端 97.3% / 规则 **78.4%** —— 详见 `app/eval/BASELINE.md`。
 
 连通性测试已通过。语音输入：UI 已接 Web Speech API（需浏览器授权麦克风）。
 
@@ -183,4 +187,5 @@ BASE_URL=http://127.0.0.1:3002 SESSION_ID=owner-10-rules npm run trial:owner10
 | 画布白屏 `Cannot read properties of undefined (reading 'toLocaleString')` | `src/ui/ResultView.tsx`：`verb !== 'order.query'` 一律走 `CreateBody`，直接取 `data.amount`；而 `inventory.query` 返回 `{rows:[]}`、`delivery.*` 返回 `{deliveryNo}`、`credit.check` 返回额度对象 —— 都没有 `amount` | 金额统一走 `money()`（`undefined`/数组 → `—`）；`data` 为数组或 `null` 时不按订单渲染；`no`/`amount`/`status` 缺哪个就不渲染哪一行 | 跑一次 `inventory.query` 或 `credit.check`，画布应正常显示历史格子，控制台 0 错误 |
 | 「记住」按钮看不见 | `ConfirmCard` 里是两个 `type="link"` 小号灰字链接，位于卡片底部左下；且 `rememberableSlots` 为空时直接 `disabled`，不给任何解释 | 主按钮改实体按钮 + 图标（`BookOutlined`）；`Tooltip` 说明「有原话才能记住」；`disabled` 用 `span` 兜住 Tooltip | 打开任意确认卡，底部左侧应可见「记住这个说法」；无客户/产品原话时悬停给出原因 |
 | 点「记住这个说法」**像没反应** | 数据其实已写入（`标准件B型→B-200`、`张三→张三（C001）` 都在库里），但反馈只有 antd 全局 toast —— 在页面顶部一闪而过，用户盯着按钮看不到任何变化；且 `fetch` 不判 `r.ok`，失败也会静默 | 按钮就地反馈：成功后变「已记住 ✓」+ 绿色描边，卡片底部列出记住了什么（`"标准件B型" → B-200 标准件B型`）；失败就地红字；补上 `r.ok` 检查 | 点一次按钮：按钮文案当即可见变化 + 卡片底部出现绿色 Tag；`curl /api/lexicon` 应多出对应行 |
+| **数量抽错（会静默落错数据）** | 数量正则的量词是**可选的**，且未排除型号/单号/人名里的数字 → 从左到右取最早匹配：「给李四来五十个」→ **「四」**（人名里的四）、「A-100一百个」→ **「1」**（型号里的 1）、「SO-2026-1002改成150个」→ **「6」**（单号里的 6）。数量错了人一眼看不出来，属最危险的静默错误 | 新增 `maskCodes()`：抽数量前把型号/编码/单号的数字**等长遮罩**；量词改为**必需**（无量词时走「来/要/订/数量」引导词兜底） | `npm run eval` 规则槽位 ≥95%；单独验这三句：应分别得到 五十 / 一百 / 150 |
 | **记住「张三」这类标准名污染词表** | 「记住」按钮把**所有**客户/产品原话都写进词表，包括系统本来就认得的标准名（`张三` / `C001` / `B-200` / `标准件B型`）→ 词表被零收益的行填满（T1 后实测 3 行里有 2 行是噪音） | 后端加 `isStandardTerm()`（客户 name/code、产品 model/name，归一化比较）→ 命中则**不入库**，返回 200 + `skipped:'standard_term'`；`proposeFromConfirm` 同样过滤；前端在卡片底部显示「没记（不需要）：…本来就是标准名」—— **是跳过不是失败，必须说清楚** | `POST /api/lexicon {phrase:'张三',kind:'slot',slot:'customer'}` → `skipped:'standard_term'`，词表行数**不变**；`老李` 这类别名照常写入 |
