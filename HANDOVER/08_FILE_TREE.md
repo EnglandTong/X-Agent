@@ -63,6 +63,7 @@
 | `scripts/smoke-verbs.ts` | 12 动词冒烟 |
 | `scripts/trial-10-utterances.ts` | API 真链路 10 条：`npm run trial:10` |
 | `scripts/trial-owner-10.ts` | **T1 派工单 10 条真口吻**：`npm run trial:owner10`（`BASE_URL` 换端口 / `SESSION_ID` 换画布 / `RESET_PANELS=1` 才清画布；单条失败不中断，跑完出 DB 计数） |
+| `scripts/eval-asr-utterances.ts` | **真口吻动词准确率**：`npm run eval:asr`（`BASE_URL=:3002` 跑规则档）。持续暴露「评测集口径 96% vs 真口吻 78%」的差距；T4 改消解后必须重跑 |
 | `eval/utterances.jsonl` | 主评测样本 |
 | `eval/utterances.lexicon.jsonl` | 用语夹具样本 |
 | `eval/asr-utterances.jsonl` | ASR CER 参考转写样本 |

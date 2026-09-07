@@ -1,3 +1,39 @@
-{"id":"asr-demo-01","text":"给张三来120个A-100"}
-{"id":"asr-demo-02","text":"查一下华东仓库存"}
-{"id":"asr-demo-03","text":"确认订单"}
+{"id":"asr-demo-01","text":"给张三来120个A-100","category":"baseline","expectVerb":"order.create"}
+{"id":"asr-demo-02","text":"查一下华东仓库存","category":"baseline","expectVerb":"inventory.query"}
+{"id":"asr-demo-03","text":"确认订单","category":"baseline","expectVerb":"order.confirm"}
+{"id":"asr-01","text":"给张三来五十个A-100","category":"customer","expectVerb":"order.create"}
+{"id":"asr-02","text":"张伟那个单查一下","category":"customer","expectVerb":"order.query"}
+{"id":"asr-03","text":"李四要三十个B-200","category":"customer","expectVerb":"order.create"}
+{"id":"asr-04","text":"王五的单取消掉","category":"customer","expectVerb":"order.cancel"}
+{"id":"asr-05","text":"章三来二十个C-300","category":"customer","expectVerb":"order.create","note":"同音姓氏 章/张 —— 测会不会误绑到张三"}
+{"id":"asr-06","text":"张伟还是张三，我要张三的单","category":"customer","expectVerb":"order.query","note":"重名歧义，必须弹候选"}
+{"id":"asr-07","text":"老张的单子查一下","category":"customer","expectVerb":"order.query","note":"简称，未记住时应问而非猜"}
+{"id":"asr-08","text":"来一百个A-100","category":"product","expectVerb":"order.create"}
+{"id":"asr-09","text":"B-200要三十个","category":"product","expectVerb":"order.create"}
+{"id":"asr-10","text":"C-300还有多少库存","category":"product","expectVerb":"inventory.query"}
+{"id":"asr-11","text":"标准件A型来二十个","category":"product","expectVerb":"order.create","note":"中文产品名，非编码"}
+{"id":"asr-12","text":"A100 一百个","category":"product","expectVerb":"order.create","note":"ASR 常丢横杠"}
+{"id":"asr-13","text":"B两百来五十个","category":"product","expectVerb":"order.create","note":"编码口语化"}
+{"id":"asr-14","text":"来三十个A-100","category":"qty","expectVerb":"order.create"}
+{"id":"asr-15","text":"一百二十个B-200","category":"qty","expectVerb":"order.create","note":"中文数字"}
+{"id":"asr-16","text":"两箱A-100","category":"qty","expectVerb":"order.create","note":"单位非「个」"}
+{"id":"asr-17","text":"五十支B-200","category":"qty","expectVerb":"order.create","note":"单位「支」"}
+{"id":"asr-18","text":"一百二C-300","category":"qty","expectVerb":"order.create","note":"中文数字省略"}
+{"id":"asr-19","text":"三十个A-100和二十个B-200","category":"qty","expectVerb":"order.create","note":"多行"}
+{"id":"asr-20","text":"给张三来五十个A-100，下周三要","category":"date","expectVerb":"order.create"}
+{"id":"asr-21","text":"月底前要三十个B-200","category":"date","expectVerb":"order.create"}
+{"id":"asr-22","text":"后天要二十个C-300","category":"date","expectVerb":"order.create"}
+{"id":"asr-23","text":"下个月初给我来一百个A-100","category":"date","expectVerb":"order.create"}
+{"id":"asr-24","text":"十五号交货，五十个B-200","category":"date","expectVerb":"order.create"}
+{"id":"asr-25","text":"张三的单，下周五出货","category":"date","expectVerb":"delivery.create"}
+{"id":"asr-26","text":"华东仓还有多少A-100","category":"warehouse","expectVerb":"inventory.query"}
+{"id":"asr-27","text":"华南仓B-200库存查一下","category":"warehouse","expectVerb":"inventory.query"}
+{"id":"asr-28","text":"从华北仓出五十个A-100","category":"warehouse","expectVerb":"delivery.create"}
+{"id":"asr-29","text":"张三的单发华东仓","category":"warehouse","expectVerb":"order.create"}
+{"id":"asr-30","text":"开张单，B-200要三十，给张三","category":"mixed","expectVerb":"order.create","note":"动词用语（未记住时可能不认）"}
+{"id":"asr-31","text":"张three的单取消掉","category":"mixed","expectVerb":"order.cancel","note":"ASR 误识 —— 不得静默落库"}
+{"id":"asr-32","text":"杠笔多少钱","category":"mixed","expectVerb":"none","note":"范围外（无 price.query），期望明确答不了而非乱猜"}
+{"id":"asr-33","text":"记住老李就是李四","category":"mixed","expectVerb":"none","note":"G1：无 lexicon.remember 动词"}
+{"id":"asr-34","text":"订单SO-2026-1007出八十个","category":"mixed","expectVerb":"delivery.create","note":"单号 + 数字"}
+{"id":"asr-35","text":"同一个单再出一百个","category":"mixed","expectVerb":"delivery.create","note":"超量场景，应硬拦"}
+{"id":"asr-36","text":"李四信用够不够下一万","category":"mixed","expectVerb":"credit.check"}

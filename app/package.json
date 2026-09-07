@@ -14,6 +14,7 @@
     "eval:rules": "tsx scripts/eval-interpret.ts --engine=rules",
     "eval:lexicon": "tsx scripts/eval-lexicon.ts",
     "eval:compare": "tsx scripts/eval-compare-models.ts",
+    "eval:asr": "tsx scripts/eval-asr-utterances.ts",
     "trial:10": "tsx scripts/trial-10-utterances.ts",
     "trial:owner10": "tsx scripts/trial-owner-10.ts",
     "typecheck": "tsc --noEmit",
