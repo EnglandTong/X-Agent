@@ -146,15 +146,17 @@ function detectVerb(utterance: string, available: string[]): { verb: string; con
   const hasModel = /[A-Za-z]\s*-?\s*\d{3}/.test(s)
 
   if (createHit > 0 && queryHit === 0) {
-    return { verb: pickAvailable(available, ['order.create'], 'order.create'), confidence: 0.9 }
+    // 通用兜底（仅凭信号词）不给高置信 —— D11：低置信只读会在 UI 上明说「不确定」
+    return { verb: pickAvailable(available, ['order.create'], 'order.create'), confidence: 0.78 }
   }
   if (queryHit > 0 && createHit === 0) {
-    return { verb: pickAvailable(available, ['order.query'], 'order.query'), confidence: 0.9 }
+    return { verb: pickAvailable(available, ['order.query'], 'order.query'), confidence: 0.72 }
   }
   if (createHit > 0 && queryHit > 0) {
+    // 双命中（如「订单」含「订」）在口语里极常见且判定通常正确，置信度须高于提示阈值 0.75
     return hasQty
-      ? { verb: pickAvailable(available, ['order.create'], 'order.create'), confidence: 0.65 }
-      : { verb: pickAvailable(available, ['order.query'], 'order.query'), confidence: 0.65 }
+      ? { verb: pickAvailable(available, ['order.create'], 'order.create'), confidence: 0.75 }
+      : { verb: pickAvailable(available, ['order.query'], 'order.query'), confidence: 0.75 }
   }
   if (hasModel && hasQty) {
     return { verb: pickAvailable(available, ['order.create'], 'order.create'), confidence: 0.72 }

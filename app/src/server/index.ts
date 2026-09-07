@@ -345,6 +345,10 @@ app.post<{ Body: { utterance?: string; today?: string } }>(
         .map((m) => slots.find((s) => s.slot === m)?.title ?? m)
         .join('、')
       question = `还需要：${names}`
+    } else if (result.verbConfidence < 0.75 && result.risk === 'read') {
+      // D11：低置信只读 —— 宁可承认不确定，也不要自信地答非所问（G2：
+      // 断网档曾把「杠笔多少钱」当订单查询执行并报出合计金额）
+      question = `这个我不太确定（把握 ${Math.round(result.verbConfidence * 100)}%，判为「${result.verb}」）—— 可以换个说法，也可以直接确认执行。`
     }
 
     return {
