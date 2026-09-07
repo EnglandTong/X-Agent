@@ -43,6 +43,7 @@
 | 本地运行 | ✅ 已启动 | `http://localhost:3001`（按需） |
 | 源码版本 | ✅ GitHub `main` | `EnglandTong/Agent_ERP` |
 | 远程仓库 | ✅ **已建** | `https://github.com/EnglandTong/Agent_ERP.git` |
+| 🚨 同步状态 | ❌ **落后 6 个提交未 push** | 本地 `7c69bae` / 远端 `f1eaa81`。**接手第一件事 = `git push`**，见 `12_HANDOFF.md` T0 |
 | 密钥文件 | ✅ Key 在 `.env.local` | 设置面板已填；不进 Git |
 | 评测 | ✅ 双跑基线 + 用语夹具 + 对比脚手架 | `eval` / `eval:lexicon` / `eval:compare` |
 | AI 骨干 | ✅ 三件套已锁定 | **大脑云端 + 语音本地**；0.6B 暂缓；见 `OFFLINE_BUNDLE.md` |
@@ -69,7 +70,8 @@
 
 | P | 事项 | 验收标准 |
 |---|---|---|
-| **P0** | **先 commit / 干净树**：`git status` 无未提交落地改动（或按 Owner 确认 commit） | 工作树干净后再开下一波 |
+| **P0** | **先 push 再动手**：本地领先远端 6 个提交（详见 `12_HANDOFF.md` T0） | `git log --oneline origin/main -1` = 本地 HEAD |
+| **P0** | **干净树**：`git status` 无未提交落地改动（或按 Owner 确认 commit） | 工作树干净后再开下一波 |
 | **P0** | 让 Owner 填火山 API Key，「保存并测试」后跑 `npm run eval` | 模型列有数字；对比表更新 BASELINE |
 | **P1** | Owner 画布跑 10 条真口吻（开单→确认→部分出货→记住说法） | 手感稳定；错例进 failures |
 | **P1** | 本机装 SenseVoice + 热词；CER 过关后换掉 Web Speech | 见 `app/models/OFFLINE_BUNDLE.md` |
@@ -106,3 +108,4 @@
 | `09_GLOSSARY.md` | 术语表 + Owner 协作偏好 | 沟通前 |
 | `10_SESSION_LOG.md` | 历次讨论流水（谁说了什么、怎么定的） | 想知道「为什么」时 |
 | `11_PERSONAL_LEXICON.md` | 个人用语表 schema + resolve/画布插入点 | 做习惯学习 / 别称记忆时 |
+| **`12_HANDOFF.md`** | **派工单：保留资产 / 现状四象限 / T0–T6 任务单 / 红线 / 并行纪律** | **开工前必读**（交给外部执行者时） |
