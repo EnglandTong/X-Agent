@@ -287,3 +287,18 @@ Owner 拍板（含当日澄清）：
 
 **T3 → T4 → 记忆网络 v1（candidate + 跨天升格）→ T5 抽 `core/`**。
 守红线：核心闭环未通不加第二个大功能。
+
+---
+
+## 十三、记忆网络 v1 落地（2026-09-08）
+
+| 部件 | 落法 |
+|---|---|
+| **候选区** | `PersonalLexeme.status` 新增 `candidate` —— 观察中，**不参与消解**（`lookupSlot` 只查 `active`） |
+| **证据表** | 新增 `LexemeEvidence(phraseNorm, slot, targetId, day, source)`，唯一键 `(userId, phraseNorm, slot, targetId, day)` → 同一天同一目标只记一次 |
+| **观察点** | 动词 `run` **成功**后，从 `slots` 取客户/产品的 `raw` + 提交值 → `observeUsage()`；**观察失败绝不影响主流程** |
+| **升格** | `days ≥ 2` → `candidate` 转 `active`；点「记住」（`source: 'explicit'`）立即生效，不受跨天限制 |
+| **噪声过滤** | 噪声每次长得都不一样 → 凑不满同一目标的跨天计数 → 自动沉底 |
+
+复现：`npm run smoke:memory`（6 项断言）。
+阈值常量：`PROMOTE_MIN_DAYS = 2`（`lexicon.ts`），改阈值只改这一个常量。

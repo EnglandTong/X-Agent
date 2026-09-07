@@ -134,6 +134,33 @@ model PersonalLexeme {
   @@index([userId, kind, verb])
 }
 
+/// 个人用语的「证据」—— 每观察到一次「说法 → 目标」记一行
+///
+/// 为什么单独一张表：决策 #28 要求说法先进**候选区**，稳定复现才升格成记忆卡。
+/// 「稳定」的判据是**跨天**（≥2 次且跨 ≥2 天），所以必须按天记账，不能只存一个计数。
+/// 单行语义 = 某用户某个说法在某个**自然日**指向了某个目标（同一天重复只算一次）。
+model LexemeEvidence {
+  id          String   @id @default(cuid())
+  userId      String   @default("owner")
+  /// 归一化说法（与 PersonalLexeme.phraseNorm 同规则）
+  phraseNorm  String
+  /// 人看见的原始说法（审计用）
+  phrase      String
+  /// customer | product（一代只观察这两个槽）
+  slot        String
+  /// 落库目标（客户/产品主键）
+  targetId    String
+  targetLabel String?
+  /// 出现的自然日 YYYY-MM-DD —— 跨天判定只看这一列
+  day         String
+  /// observed（自动观察）| explicit（点了「记住」）
+  source      String
+  createdAt   DateTime @default(now())
+
+  @@unique([userId, phraseNorm, slot, targetId, day])
+  @@index([userId, phraseNorm, slot])
+}
+
 /// 画布格子 —— 既是界面上的一格，也是一条不可变审计记录
 model Panel {
   id            String   @id @default(cuid())

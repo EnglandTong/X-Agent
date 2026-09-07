@@ -34,6 +34,7 @@
 | 24 | **画布渲染崩溃（UI 缺陷，T1 后被 Owner 首次真用时撞到）** | 浏览器开 `http://localhost:3001` | ❌ 旧：`ResultView` 对**所有非 `order.query` 动词**都按订单取 `data.amount`，而 `inventory.query`（`{rows:[]}`）/`credit.check`/`delivery.*` 没有该字段 → `undefined.toLocaleString()` → **整页白屏**。✅ 已修：金额统一走 `money()` 安全格式化 + 非对象 data 不按订单渲染 + 缺字段不渲染该行（见下表「已修缺陷」） |
 | 25 | **T2 · SenseVoice int8 权重就位** | `ls app/models/asr/sensevoice/` + `npm run hotwords` | ✅ `model.int8.onnx` **228.15 MB**（>200MB）；`tokens.txt` 308KB；`npm run hotwords` → **24 条**（4 客户名 + 4 客户编码 + 3 产品名 + 3 产品编码 + 3 仓库 + 7 动词词）。⏸ **CER 未实跑**：缺 sherpa-onnx 运行时 |
 | 26 | **T3 · 真口吻评测集 + 两档基线** | `npm run eval:asr`（云端）/ `BASE_URL=:3002 npm run eval:asr`（规则档） | 样本 **39 条**（要求 ≥30）；**云端 97.3%（36/37）· 规则档 78.4%（29/37）—— 差 18.9 个百分点**。规则档最弱是「出货」类（4 条全错）。分类：date 83%、其余 100%（云端档） |
+| 29 | **记忆网络 v1（决策 #28 落地）** | `npm run smoke:memory` + 真实链路 | ✅ 6 项断言全过：① 首次观察→候选区 ② 同天重复不涨 ③ 跨第 2 天→升格 active ④ 标准名→不记 ⑤ 噪声（每次不同）→永远候选 ⑥ 点「记住」→立即生效。端到端实跑：一次 `order.query` → 自动记 evidence + 建 `candidate`（不生效）。`npx tsc --noEmit` 0 错误 |
 | 28 | **T5 · 抽 `core/`（主干协议层）** | `npx tsc --noEmit` + `grep -r "from '\.\./server" src/core/` | ✅ **tsc 0 错误**；✅ **反向 import 为空**。`core/` = 00_MANIFEST.md + manifest.schema.json + run.ts（Run 六态）+ registry.ts（只登记）。**未改动任何现有代码**，搬仓时是目录移动而非重写 |
 | 27 | **T4 · 数量消解收紧（真 bug）** | `npm run eval` + `npm run eval:asr`（两档） | ❌ 旧：数量正则**量词可选 + 未遮型号/单号数字** → 「给李四来五十个」抽成 **「四」**、「A-100一百个」抽成 **「1」**、「SO-2026-1002改成150个」抽成 **「6」**（会静默落错数据）。✅ 已修：`maskCodes()` 遮罩 + 量词必需。规则槽位 **91.7% → 95.0%**；模型 **100%/100%**；真口吻两档 97.3% / 78.4% 均不劣化 |
 
@@ -121,7 +122,8 @@ curl -s -X PUT localhost:3001/api/settings -H 'Content-Type: application/json' \
 | Inventory | 种子库存；含 `reserved` |
 | **Delivery** | ✅ 已建表；出货冒烟会写入草稿/已确认出货单 |
 | **DeliveryItem** | ✅ 已建表 |
-| **PersonalLexeme** | ✅ 已建表；用语评测/画布「记住」写入；`status`: active / rejected / retired |
+| **PersonalLexeme** | ✅ 已建表；用语评测/画布「记住」写入；`status`: **active / candidate（候选区，不参与消解）/ rejected / retired** |
+| **LexemeEvidence** | ✅ 记忆网络 v1 新增：每观察到一次「说法 → 目标」记一行，按 `day` 跨天计数，达标才升格（见 `04_DECISIONS` #28 / 十三） |
 | Panel | 运行时可变（清空后为 0） |
 
 > 种子数据见 `app/prisma/seed.ts`。重置：`npm run db:push && npm run db:seed`。  

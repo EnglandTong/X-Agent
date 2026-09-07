@@ -6,8 +6,13 @@
 import type { PrismaClient } from '@prisma/client'
 
 export type LexemeKind = 'verb' | 'slot'
-export type LexemeSource = 'explicit' | 'confirmed'
-export type LexemeStatus = 'active' | 'rejected' | 'retired'
+/** explicit = 点「记住」；confirmed = 确认后提议采纳；observed = 自动观察（决策 #28） */
+export type LexemeSource = 'explicit' | 'confirmed' | 'observed'
+/**
+ * candidate = 候选区（观察中，**不参与消解**，满跨天阈值才转 active）。
+ * 这一档是决策 #28 加的：说法先进候选区，稳定复现才升格成记忆卡。
+ */
+export type LexemeStatus = 'active' | 'rejected' | 'retired' | 'candidate'
 
 export interface LexemeHit {
   id: string
@@ -382,4 +387,121 @@ export async function isStandardTerm(
     return rows.some((r) => phraseNorm(r.model) === pn || phraseNorm(r.name) === pn)
   }
   return false
+}
+
+// ---------------------------------------------------------------- 记忆的写入策略（决策 #28）
+
+/**
+ * 升格阈值（Owner 选方案 B）：**≥2 次且跨 ≥2 天**。
+ * 只在一个自然日里重复不算习惯 —— 那可能只是今天顺口一说。
+ */
+export const PROMOTE_MIN_DAYS = 2
+
+/** 本地自然日 YYYY-MM-DD（跨天判定只看这个粒度） */
+export function dayKey(d: Date = new Date()): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+}
+
+export interface ObserveInput {
+  phrase: string
+  slot: 'customer' | 'product'
+  targetId: string
+  targetLabel?: string | null
+  userId?: string
+  /** observed = 自动观察（进候选区）；explicit = 人点了「记住」（立即生效） */
+  source?: 'observed' | 'explicit'
+  /** 仅测试用：注入"今天"，便于验证跨天升格 */
+  today?: string
+}
+
+export interface ObserveResult {
+  phrase: string
+  /** 到目前为止，这个说法指向该目标共出现过几天 */
+  days: number
+  /** 本次是否触发了升格 */
+  promoted: boolean
+  status: 'candidate' | 'active' | 'skipped_standard'
+}
+
+/**
+ * 观察一次「说法 → 目标」，并按阈值决定是否升格为记忆卡。
+ *
+ * 三代流程（决策 #28）：
+ *   ① 观察：写一条证据（同一天同一目标只记一次）
+ *   ② 证据：数跨了几天
+ *   ③ 升格：≥PROMOTE_MIN_DAYS 天 → candidate 转 active；不到就留在候选区（不参与消解）
+ *
+ * 噪声（如 ASR 误识「老呃张老」）每次长得都不一样，永远凑不满同一目标的跨天计数，
+ * 所以**阈值本身即噪声过滤器**。
+ */
+export async function observeUsage(db: PrismaClient, input: ObserveInput): Promise<ObserveResult> {
+  const userId = input.userId ?? 'owner'
+  const phrase = String(input.phrase ?? '').trim()
+  const pn = phraseNorm(phrase)
+  const slot = input.slot
+  const source = input.source === 'explicit' ? 'explicit' : 'observed'
+  const day = input.today ?? dayKey()
+
+  if (!pn || pn.length < 2 || !input.targetId) {
+    return { phrase, days: 0, promoted: false, status: 'candidate' }
+  }
+
+  // 标准名不需要记（本来就认得）
+  if (await isStandardTerm(db, phrase, slot)) {
+    return { phrase, days: 0, promoted: false, status: 'skipped_standard' }
+  }
+
+  // ① 观察：同一天 + 同一目标只记一次（唯一键保证幂等）
+  await db.lexemeEvidence.upsert({
+    where: {
+      userId_phraseNorm_slot_targetId_day: {
+        userId,
+        phraseNorm: pn,
+        slot,
+        targetId: input.targetId,
+        day,
+      },
+    },
+    create: {
+      userId,
+      phraseNorm: pn,
+      phrase,
+      slot,
+      targetId: input.targetId,
+      targetLabel: input.targetLabel ?? null,
+      day,
+      source,
+    },
+    update: {},
+  })
+
+  // ② 证据：跨了几天（同一天重复只算一天）
+  const rows = await db.lexemeEvidence.findMany({
+    where: { userId, phraseNorm: pn, slot, targetId: input.targetId },
+    select: { day: true },
+    distinct: ['day'],
+  })
+  const days = rows.length
+
+  // ③ 升格：显式「记住」立即生效；观察需达到跨天阈值
+  const shouldBeActive = source === 'explicit' || days >= PROMOTE_MIN_DAYS
+
+  await upsertLexeme(db, {
+    userId,
+    phrase,
+    kind: 'slot',
+    slot,
+    targetId: input.targetId,
+    targetLabel: input.targetLabel ?? null,
+    targetRaw: phrase,
+    source,
+    status: shouldBeActive ? 'active' : 'candidate',
+  })
+
+  return {
+    phrase,
+    days,
+    promoted: shouldBeActive && source === 'observed',
+    status: shouldBeActive ? 'active' : 'candidate',
+  }
 }

@@ -39,6 +39,7 @@ import {
   retireLexeme,
   proposeFromConfirm,
   isStandardTerm,
+  observeUsage,
 } from './lexicon'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -389,6 +390,25 @@ app.post<{
   }
 
   const result = await verb.run(args, { db: prisma, actor: 'owner' })
+
+  // 记忆：观察一次「说法 → 目标」（决策 #28）
+  //   先进候选区，跨 ≥2 天才升格为记忆卡；标准名与异常情况一律跳过。
+  //   观察失败绝不影响主流程 —— 记忆是增益，不是主链路的一环。
+  if ((result as { ok?: boolean })?.ok) {
+    for (const s of req.body?.slots ?? []) {
+      if (s?.slot !== 'customer' && s?.slot !== 'product') continue
+      const raw = s.raw != null ? String(s.raw).trim() : ''
+      const targetId = (args as Record<string, unknown>)[s.field]
+      if (!raw || raw.length < 2 || targetId == null || targetId === '') continue
+      await observeUsage(prisma, {
+        phrase: raw,
+        slot: s.slot,
+        targetId: String(targetId),
+        targetLabel: s.label ?? null,
+        source: 'observed',
+      }).catch(() => {})
+    }
+  }
 
   // 落一格：不可变，提交即冻结
   const panel = await recordPanel(prisma, {
