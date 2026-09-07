@@ -3,6 +3,7 @@ import { createForm } from '@formily/core'
 import { FormProvider, FormConsumer } from '@formily/react'
 import { FormLayout } from '@formily/antd-v5'
 import { Card, Tag, Button, Space, Divider, Tooltip, message } from 'antd'
+import { BookOutlined, CheckOutlined } from '@ant-design/icons'
 import { SchemaField } from './formily'
 import type { SlotResult } from '../types'
 
@@ -139,6 +140,13 @@ export function ConfirmCard({
 }: Props) {
   const formSchema = useMemo(() => buildFormSchema(schema, slots), [schema, slots])
   const [remembering, setRemembering] = useState(false)
+  /**
+   * 就地反馈：记住了什么 / 失败原因。
+   * 只用 antd 全局 toast 时，提示在页面顶部一闪而过，用户盯着按钮会以为「点了没反应」——
+   * 而数据其实已经写进个人用语表了。写入结果必须由按钮自己说清楚。
+   */
+  const [remembered, setRemembered] = useState<string[]>([])
+  const [rememberError, setRememberError] = useState<string | null>(null)
 
   const initialValues = useMemo(() => {
     const v: Record<string, unknown> = {}
@@ -175,16 +183,18 @@ export function ConfirmCard({
   /** 默认：只记槽位 raw（客户/产品） */
   async function rememberSlots() {
     if (!rememberableSlots.length) {
-      message.info('没有可记住的客户/产品说法')
+      setRememberError('这句话里没有可记住的客户/产品说法')
       return
     }
     const values = { ...form.values }
     setRemembering(true)
+    setRememberError(null)
+    const done: string[] = []
     try {
       for (const s of rememberableSlots) {
         const targetId = values[s.field] ?? s.value
         if (targetId == null || targetId === '') continue
-        await fetch('/api/lexicon', {
+        const r = await fetch('/api/lexicon', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -197,9 +207,18 @@ export function ConfirmCard({
             source: 'explicit',
           }),
         })
+        if (!r.ok) throw new Error(`「${String(s.raw).trim()}」写入失败：HTTP ${r.status}`)
+        const j = await r.json()
+        done.push(`“${String(s.raw).trim()}” → ${j?.lexeme?.targetLabel ?? s.label ?? '已存'}`)
       }
+      if (!done.length) {
+        setRememberError('客户/产品还没有选定，记住不了')
+        return
+      }
+      setRemembered((prev) => [...prev, ...done])
       message.success('已记住客户/产品说法')
     } catch (e: any) {
+      setRememberError(String(e?.message ?? e))
       message.error(String(e?.message ?? e))
     } finally {
       setRemembering(false)
@@ -209,12 +228,13 @@ export function ConfirmCard({
   /** 可选：短句记为动词说法（≤16 字，避免整句垃圾） */
   async function rememberAsVerb() {
     if (!canRememberVerb) {
-      message.info('开单说法须为 2–16 个字')
+      setRememberError('开单说法须为 2–16 个字')
       return
     }
     setRemembering(true)
+    setRememberError(null)
     try {
-      await fetch('/api/lexicon', {
+      const r = await fetch('/api/lexicon', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -224,8 +244,11 @@ export function ConfirmCard({
           source: 'explicit',
         }),
       })
+      if (!r.ok) throw new Error(`写入失败：HTTP ${r.status}`)
+      setRemembered((prev) => [...prev, `“${verbPhrase}” → ${verb}`])
       message.success('已记住为开单说法')
     } catch (e: any) {
+      setRememberError(String(e?.message ?? e))
       message.error(String(e?.message ?? e))
     } finally {
       setRemembering(false)
@@ -310,16 +333,29 @@ export function ConfirmCard({
 
       <Space style={{ width: '100%', justifyContent: 'space-between' }} wrap>
         <Space size={0} wrap>
-          <Button
-            size="small"
-            type="link"
-            loading={remembering}
-            disabled={submitting || !rememberableSlots.length}
-            onClick={rememberSlots}
-            title="只记住客户/产品槽位说法"
+          <Tooltip
+            title={
+              remembered.length
+                ? `已记进个人用语表：${remembered.join('；')}`
+                : rememberableSlots.length
+                  ? '把这句里的客户/产品说法记进个人用语表，下次直接认（只记槽位，不记整句）'
+                  : '需要有客户或产品的原话（≥2 字）才可记住'
+            }
           >
-            记住这个说法
-          </Button>
+            {/* disabled 的 button 不触发 hover，用 span 兜住 Tooltip */}
+            <span>
+              <Button
+                size="small"
+                icon={remembered.length ? <CheckOutlined /> : <BookOutlined />}
+                loading={remembering}
+                disabled={submitting || (!rememberableSlots.length && !remembered.length)}
+                onClick={rememberSlots}
+                style={remembered.length ? { color: '#389e0d', borderColor: '#b7eb8f' } : undefined}
+              >
+                {remembered.length ? '已记住' : '记住这个说法'}
+              </Button>
+            </span>
+          </Tooltip>
           <Button
             size="small"
             type="link"
@@ -350,6 +386,23 @@ export function ConfirmCard({
           </FormConsumer>
         </Space>
       </Space>
+
+      {/* 记住的结果就地说明 —— 全局 toast 会一闪而过，写入有没有成功必须由卡片自己回答 */}
+      {(remembered.length > 0 || rememberError) && (
+        <div style={{ marginTop: 8, fontSize: 11, lineHeight: 1.9 }}>
+          {remembered.length > 0 && (
+            <div style={{ color: '#389e0d' }}>
+              已记进个人用语表（下次直接认）：
+              {remembered.map((t, i) => (
+                <Tag key={i} color="green" style={{ fontSize: 10, margin: '0 4px 2px 0' }}>
+                  {t}
+                </Tag>
+              ))}
+            </div>
+          )}
+          {rememberError && <div style={{ color: '#cf1322' }}>⛔ {rememberError}</div>}
+        </div>
+      )}
     </Card>
   )
 }

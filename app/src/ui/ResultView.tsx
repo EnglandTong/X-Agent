@@ -7,6 +7,21 @@ const ISSUE_META = {
   block: { alert: 'error' as const, tag: 'error' as const, text: '已拦截' },
 }
 
+/**
+ * 金额安全格式化。
+ *
+ * 为什么必须有：不是每个动词的 data 都带 amount ——
+ * inventory.query / customer.query / delivery.query 返回的是数组，
+ * credit.check 返回 { creditLimit, creditUsed, ... }，delivery.* 返回 { deliveryNo, ... }。
+ * 早期这里直接 `v.toLocaleString()`，于是「查库存」「查信用」这类格子一落，整个画布白屏。
+ * 画布是不可变资产：一个格子渲染失败，不该带走整页历史。
+ */
+function money(v: unknown): string {
+  const n = typeof v === 'number' ? v : Number(v)
+  if (!Number.isFinite(n)) return '—'
+  return `¥${n.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}`
+}
+
 const STATUS_COLOR: Record<string, string> = {
   草稿: 'default',
   已确认: 'blue',
@@ -65,7 +80,7 @@ function Issues({ result }: { result: VerbResult }) {
 }
 
 function QueryBody({ result }: { result: VerbResult }) {
-  const rows = (result.data as any[]) ?? []
+  const rows = Array.isArray(result.data) ? (result.data as any[]) : []
 
   if (!result.ok) {
     return (
@@ -114,10 +129,8 @@ function QueryBody({ result }: { result: VerbResult }) {
             dataIndex: 'amount',
             width: 98,
             align: 'right',
-            render: (v: number) => (
-              <span style={{ fontVariantNumeric: 'tabular-nums' }}>
-                ¥{v.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
-              </span>
+            render: (v: unknown) => (
+              <span style={{ fontVariantNumeric: 'tabular-nums' }}>{money(v)}</span>
             ),
           },
           {
@@ -133,7 +146,9 @@ function QueryBody({ result }: { result: VerbResult }) {
 }
 
 function CreateBody({ result }: { result: VerbResult }) {
-  const d = result.data as any
+  // 数组 / null / 空都不是「订单对象」—— 不要按订单字段去取，取不到就别渲染那一行
+  const d =
+    result.data && !Array.isArray(result.data) ? (result.data as Record<string, any>) : null
   return (
     <>
       <div style={{ fontSize: 13, marginBottom: 6 }}>
@@ -143,34 +158,47 @@ function CreateBody({ result }: { result: VerbResult }) {
       <Issues result={result} />
       {d && (
         <Space direction="vertical" size={2} style={{ fontSize: 13 }}>
-          <div>
-            订单号 <code>{d.no}</code>
-            {d.mode === 'change' && (
-              <Tag color="purple" style={{ fontSize: 10, marginInlineStart: 4 }}>
-                变更单
-              </Tag>
-            )}
-            {d.mode === 'revise' && (
-              <Tag color="orange" style={{ fontSize: 10, marginInlineStart: 4 }}>
-                原地修订
-              </Tag>
-            )}
-          </div>
-          <div>
-            客户 <b>{d.customer}</b> · 仓库 {d.warehouse} · 交期 {d.deliveryDate}
-          </div>
+          {d.no && (
+            <div>
+              订单号 <code>{d.no}</code>
+              {d.mode === 'change' && (
+                <Tag color="purple" style={{ fontSize: 10, marginInlineStart: 4 }}>
+                  变更单
+                </Tag>
+              )}
+              {d.mode === 'revise' && (
+                <Tag color="orange" style={{ fontSize: 10, marginInlineStart: 4 }}>
+                  原地修订
+                </Tag>
+              )}
+            </div>
+          )}
+          {(d.customer || d.warehouse || d.deliveryDate) && (
+            <div>
+              客户 <b>{d.customer ?? '—'}</b> · 仓库 {d.warehouse ?? '—'} · 交期{' '}
+              {d.deliveryDate ?? '—'}
+            </div>
+          )}
           {d.originNo && (
             <div style={{ fontSize: 12, color: '#722ed1' }}>
               变更自 <code>{d.originNo}</code> · 两单各自独立，靠这个单号串联
             </div>
           )}
-          <div>
-            金额{' '}
-            <b style={{ fontVariantNumeric: 'tabular-nums' }}>
-              ¥{d.amount.toLocaleString('zh-CN', { minimumFractionDigits: 2 })}
-            </b>{' '}
-            · 状态 <Tag style={{ fontSize: 11 }}>{d.status}</Tag>
-          </div>
+          {(typeof d.amount === 'number' || d.status) && (
+            <div>
+              {typeof d.amount === 'number' && (
+                <>
+                  金额{' '}
+                  <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(d.amount)}</b>{' '}
+                </>
+              )}
+              {d.status ? (
+                <>
+                  · 状态 <Tag style={{ fontSize: 11 }}>{d.status}</Tag>
+                </>
+              ) : null}
+            </div>
+          )}
         </Space>
       )}
     </>

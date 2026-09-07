@@ -15,6 +15,7 @@
     "eval:lexicon": "tsx scripts/eval-lexicon.ts",
     "eval:compare": "tsx scripts/eval-compare-models.ts",
     "trial:10": "tsx scripts/trial-10-utterances.ts",
+    "trial:owner10": "tsx scripts/trial-owner-10.ts",
     "typecheck": "tsc --noEmit",
     "smoke:delivery": "tsx scripts/smoke-delivery-remaining.ts",
     "smoke:multiline": "tsx scripts/smoke-multiline-reserve.ts",

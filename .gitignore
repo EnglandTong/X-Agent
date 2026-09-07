@@ -13,6 +13,9 @@ Agent_ERP.bundle
 agt-erp-src.zip
 *.bundle
 
+# local run logs (npm run serve / build 的重定向输出)
+*.log
+
 # eval run artifacts (keep utterances + failures.jsonl committed)
 app/eval/results/
 
