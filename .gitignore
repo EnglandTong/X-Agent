@@ -28,5 +28,7 @@ app/eval/results/
 app/models/asr/sensevoice/**
 !app/models/asr/sensevoice/.gitkeep
 !app/models/asr/sensevoice/README*
+# tokens.txt 是文本且运行必需（308KB），权重是二进制不入库，但词表必须跟着走
+!app/models/asr/sensevoice/tokens.txt
 app/models/llm/**/*.gguf
 app/models/llm/**/*.bin

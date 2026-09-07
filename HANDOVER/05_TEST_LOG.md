@@ -32,6 +32,7 @@
 | 22 | **T1 · Owner 10 条真口吻（云端档 `pi`）** | `npm run trial:owner10` | **成功 7 / 失败 0 / 需判定 3 · 0 条静默错误落库**；`PersonalLexeme` **1 行**（老李→李四，回验命中）、`Panel` **7 行**（B 组"0 行"解除）。明细见第五节 |
 | 23 | **T1 · 同批 10 条（断网 `rules` 档）** | `LLM_PROVIDER=rules PORT=3002 npm run serve` → `BASE_URL=http://127.0.0.1:3002 npm run trial:owner10` | **成功 6 / 失败 1 / 需判定 3**；开单、出货、部分出货、**超量硬拦**全部照常 → 断网可演示成立 |
 | 24 | **画布渲染崩溃（UI 缺陷，T1 后被 Owner 首次真用时撞到）** | 浏览器开 `http://localhost:3001` | ❌ 旧：`ResultView` 对**所有非 `order.query` 动词**都按订单取 `data.amount`，而 `inventory.query`（`{rows:[]}`）/`credit.check`/`delivery.*` 没有该字段 → `undefined.toLocaleString()` → **整页白屏**。✅ 已修：金额统一走 `money()` 安全格式化 + 非对象 data 不按订单渲染 + 缺字段不渲染该行（见下表「已修缺陷」） |
+| 25 | **T2 · SenseVoice int8 权重就位** | `ls app/models/asr/sensevoice/` + `npm run hotwords` | ✅ `model.int8.onnx` **228.15 MB**（>200MB）；`tokens.txt` 308KB；`npm run hotwords` → **24 条**（4 客户名 + 4 客户编码 + 3 产品名 + 3 产品编码 + 3 仓库 + 7 动词词）。⏸ **CER 未实跑**：缺 sherpa-onnx 运行时 |
 
 ---
 

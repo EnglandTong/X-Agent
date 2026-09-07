@@ -221,7 +221,16 @@ Owner 跑这 10 条真实口吻（含口音、含简称、含错字），记录�
 python -c "import sqlite3;c=sqlite3.connect('prisma/dev.db');print('PersonalLexeme:',list(c.execute('select count(*) from PersonalLexeme'))[0][0],'行 / Panel:',list(c.execute('select count(*) from Panel'))[0][0],'行')"
 ```
 
-### T2 · 拉取 SenseVoice 权重（让语音本地化从 0% 动起来）
+### T2 · 拉取 SenseVoice 权重 ✅ 已完成（2026-09-07）
+
+> **结果**：`model.int8.onnx` **228.15 MB**（验收要求 >200MB ✅）；`hotwords.txt` **24 条**覆盖全部客户名/编码 + 产品名/编码 + 仓库 + 动词词 ✅。
+> ⏸ **CER 未实跑** —— 缺 sherpa-onnx 运行时（`npm run asr:cer` 需先装 `sherpa-onnx` 二进制并设 `SHERPA_ASR_CMD`），属 T3 前置。
+>
+> ⚠️ **踩到的坑（下次别再猜包名）**：派工单里写的 `…-2024-07-17-int8.tar.bz2` **已 404**。
+> 真实资产名是 **`sherpa-onnx-sense-voice-zh-en-ja-ko-yue-int8-2024-07-17.tar.bz2`**（`int8` 在日期**之前**），
+> 压缩包 155.5MB → 解压后 `model.int8.onnx` 228.15MB。
+> 另有更新版 `…-int8-2025-09-09.tar.bz2`（158.1MB），本轮按派工单选 2024-07-17。
+> 查资产请直接打 `https://api.github.com/repos/k2-fsa/sherpa-onnx/releases/tags/asr-models` 过滤 `sense-voice`。
 
 从 sherpa-onnx releases（`k2-fsa/sherpa-onnx` · tag `asr-models`）下载
 `sherpa-onnx-sense-voice-zh-en-ja-ko-yue-2024-07-17` 的 **int8** 包（≈229MB），

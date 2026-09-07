@@ -52,7 +52,7 @@ npm run serve     # http://localhost:3001
 | 规则兜底 | ✅ 无 Key 时静默回落 rules（动词 96.0% / 槽位 98.3%），**断网可演示** |
 | **端到端真跑** | ✅ **T1 已跑**：10 条真口吻，云端 **9/10**、断网 **6/10**、**0 条静默错误落库** |
 | 人用过的痕迹 | ✅ `PersonalLexeme` 3 行、`Panel` 7 行（此前长期是 0 行） |
-| 语音本地化 | ⚠️ **0%** —— 只有脚手架，SenseVoice 权重未拉取（任务单 T2） |
+| 语音本地化 | 🟡 **权重已就位**：`model.int8.onnx` 228MB + `tokens.txt` + 热词 24 条（T2 完成）；**CER 未实跑** —— 缺 sherpa-onnx 运行时（T3 前置） |
 
 **已知缺口**（逐条证据与复现见 [05_TEST_LOG.md](./HANDOVER/05_TEST_LOG.md) 第五节）：
 
