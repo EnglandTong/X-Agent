@@ -1,0 +1,34 @@
+{
+  "x-verb": "lexicon.remember",
+  "title": "记住说法",
+  "type": "object",
+  "required": ["phrase", "target_text"],
+  "properties": {
+    "phrase": {
+      "type": "string",
+      "title": "要记的说法",
+      "x-component": "Input",
+      "x-agent": {
+        "extract": "phrase",
+        "resolution": "passthrough",
+        "askIfMissing": true,
+        "confidenceDefault": 0.9,
+        "examples": ["老李", "圆珠笔", "老王"],
+        "notes": "用户的习惯说法，只收原话片段（红线 3）"
+      }
+    },
+    "target_text": {
+      "type": "string",
+      "title": "指的是什么",
+      "x-component": "Input",
+      "x-agent": {
+        "extract": "target_text",
+        "resolution": "passthrough",
+        "askIfMissing": true,
+        "confidenceDefault": 0.9,
+        "examples": ["李四", "B-200", "王五"],
+        "notes": "目标名/编码/型号，原话片段；由 handler 消解到客户或产品"
+      }
+    }
+  }
+}

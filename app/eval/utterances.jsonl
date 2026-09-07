@@ -48,3 +48,6 @@
 {"id":"n08","utterance":"查张三客户资料","verb":"customer.query","slots":{"customer":"张三"}}
 {"id":"n09","utterance":"查一下张三信用够不够五千","verb":"credit.check","slots":{"customer":"张三","amount":"五千"}}
 {"id":"n10","utterance":"看看李四额度","verb":"customer.query","slots":{"customer":"李四"}}
+{"id":"r01","utterance":"记住老李就是李四","verb":"lexicon.remember","slots":{"phrase":"老李","target_text":"李四"}}
+{"id":"r02","utterance":"记一下：圆珠笔就是B-200","verb":"lexicon.remember","slots":{"phrase":"圆珠笔","target_text":"B-200"}}
+{"id":"r03","utterance":"帮我记住老王就是王五","verb":"lexicon.remember","slots":{"phrase":"老王","target_text":"王五"}}

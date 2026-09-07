@@ -11,10 +11,12 @@ import { inventoryReserve } from './inventory.reserve'
 import { inventoryRelease } from './inventory.release'
 import { customerQuery } from './customer.query'
 import { creditCheck } from './credit.check'
+import { lexiconRemember } from './lexicon.remember'
 
 /**
  * 动词注册表 —— 全局唯一的「这台系统能做什么」清单。
- * 满打满算 12 个（订单→出货一条线）。超过 12 说明范围在蔓延。
+ * 13 个：订单→出货一条线 12 个 + lexicon.remember（D10 拍板：自然语言「记住」）。
+ * 再加动词需 Owner 确认（范围纪律）。
  */
 const verbs = new Map<string, Verb>()
 
@@ -31,6 +33,7 @@ for (const v of [
   inventoryRelease,
   customerQuery,
   creditCheck,
+  lexiconRemember,
 ]) {
   verbs.set(v.name, v)
 }

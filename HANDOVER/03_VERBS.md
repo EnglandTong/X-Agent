@@ -2,7 +2,7 @@
 
 ---
 
-## 一、已实现的 12 个动词
+## 一、已实现的 13 个动词
 
 | 动词 | 风险 | 必填 | 说明 |
 |---|---|---|---|
@@ -18,6 +18,7 @@
 | `inventory.release` | write | `productId` `warehouseId` `qty` | 释放预留 |
 | `customer.query` | read | 无 | 客户与信用额度 |
 | `credit.check` | read | `customerId` | 单笔信用检查（可读可选金额） |
+| `lexicon.remember` | write | `phrase` `target_text` | **D10**：自然语言「记住：A 就是 B」→ 写个人用语表（`source: explicit` 立即生效）；目标消解到客户/产品，不唯一弹候选；标准名拒绝记录 |
 
 ### `order.create` 字段全表
 

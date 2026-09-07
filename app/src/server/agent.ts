@@ -289,6 +289,19 @@ function extractSlotsRules(
 ): Record<string, string> {
   const slots: Record<string, string> = {}
 
+  // ---------- 记住句式（lexicon.remember，D10）----------
+  // 命中即独占抽取，避免「记住老李就是李四」被抽成 customer=李四 之类污染
+  if (/记住|记一下|帮我记|记着/.test(utterance)) {
+    const m = utterance.match(
+      /(?:记住|记一下|帮我记|记着)[：:,，]?\s*(.{1,12}?)\s*(?:就是|就系|＝|等于|是)\s*(.{1,24})$/
+    )
+    if (m) {
+      slots.phrase = m[1].trim()
+      slots.target_text = m[2].trim()
+      return slots
+    }
+  }
+
   // ---------- 客户 ----------
   // 1) 显式前缀："给张三…" / "客户是上海XX"
   const custMatch = utterance.match(
@@ -462,6 +475,14 @@ export async function interpret(
     verb = verbLex.verb
     verbConfidence = 0.95
     verbFromLexicon = true
+  } else if (
+    // D10：「记住：A 就是 B」句式强识别 —— 没有它会被误判成 customer.query / credit.check
+    /记住|记一下|帮我记|记着/.test(utterance) &&
+    /就是|就系|是|＝|等于/.test(utterance) &&
+    available.includes('lexicon.remember')
+  ) {
+    verb = 'lexicon.remember'
+    verbConfidence = 0.9
   } else {
     // --- 1. 意图 → 动词
     ;({ verb, confidence: verbConfidence } = detectVerb(utterance, available))

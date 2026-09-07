@@ -33,7 +33,7 @@
 {"id":"asr-30","text":"开张单，B-200要三十，给张三","category":"mixed","expectVerb":"order.create","note":"动词用语（未记住时可能不认）"}
 {"id":"asr-31","text":"张three的单取消掉","category":"mixed","expectVerb":"order.cancel","note":"ASR 误识 —— 不得静默落库"}
 {"id":"asr-32","text":"杠笔多少钱","category":"mixed","expectVerb":"none","note":"范围外（无 price.query），期望明确答不了而非乱猜"}
-{"id":"asr-33","text":"记住老李就是李四","category":"mixed","expectVerb":"none","note":"G1：无 lexicon.remember 动词"}
+{"id":"asr-33","text":"记住老李就是李四","category":"mixed","expectVerb":"lexicon.remember","note":"D10：自然语言记住（原 G1 缺口，已实现为第 13 动词）"}
 {"id":"asr-34","text":"订单SO-2026-1007出八十个","category":"mixed","expectVerb":"delivery.create","note":"单号 + 数字"}
 {"id":"asr-35","text":"同一个单再出一百个","category":"mixed","expectVerb":"delivery.create","note":"超量场景，应硬拦"}
 {"id":"asr-36","text":"李四信用够不够下一万","category":"mixed","expectVerb":"credit.check"}
