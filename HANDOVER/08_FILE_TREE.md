@@ -23,6 +23,20 @@
 
 ---
 
+## 一-b、`core/`（主干协议层 · T5 抽离 · 不得 import server/）
+
+| 文件 | 职责 |
+|---|---|
+| `src/core/00_MANIFEST.md` | **协议一页纸**：三个消费者、字段表、消解优先级、加能力套路、铁律、独立仓触发条件 |
+| `src/core/manifest.schema.json` | x-agent manifest 的结构声明（JSON Schema，可用于校验） |
+| `src/core/run.ts` | **Run 六态**（received/interpreted/awaiting/executed/blocked/abandoned）+ 合法转移表，纯类型 |
+| `src/core/registry.ts` | 能力注册表（**只登记，不含实现**），保证 core 搬得走 |
+
+> 搬仓目的地：**With me 主仓**（#27 / D1）。搬的前提是守住「core 不 import server」——
+> 验证：`grep -r "from '\.\./server" src/core/` 必须为空。
+
+---
+
 ## 二、服务端
 
 | 文件 | 行 | 职责 | 备注 |

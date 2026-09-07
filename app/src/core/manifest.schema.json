@@ -1,0 +1,78 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "x-agent manifest",
+  "description": "一份 manifest 同时喂三个消费者：UI 表单（Formily）、LLM 工具定义、CLI/评测。协议层只声明结构，不含业务实现。",
+  "type": "object",
+  "required": ["x-verb", "title", "properties"],
+  "properties": {
+    "x-verb": {
+      "type": "string",
+      "description": "动词名，如 order.create；也是能力注册表的 key"
+    },
+    "title": { "type": "string", "description": "人类可读标题，UI 与工具描述共用" },
+    "required": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "必填字段名（注意：是字段名 customerId，不是槽位名 customer）"
+    },
+    "properties": {
+      "type": "object",
+      "additionalProperties": { "$ref": "#/definitions/field" }
+    }
+  },
+  "definitions": {
+    "field": {
+      "type": "object",
+      "properties": {
+        "type": { "type": "string" },
+        "title": { "type": "string" },
+        "enum": { "type": "array", "items": {} },
+        "default": {},
+        "x-component": { "type": "string", "description": "给 UI：渲染什么控件" },
+        "x-component-props": { "type": "object" },
+        "x-validator": { "type": "array", "items": { "type": "object" } },
+        "x-hidden": {
+          "type": "boolean",
+          "description": "true 表示不进确认卡表单（如多行 items），仍由 slots 带入执行"
+        },
+        "x-agent": { "$ref": "#/definitions/agentExt" }
+      }
+    },
+    "agentExt": {
+      "type": "object",
+      "description": "给模型与消解器的指令；notes 只给人看，不参与编译",
+      "required": ["extract"],
+      "properties": {
+        "extract": {
+          "type": "string",
+          "description": "槽位名（= 工具参数名）。必填字段必须声明，否则编译器报错"
+        },
+        "resolution": {
+          "type": "string",
+          "description": "消解策略，决定「原话片段 → 落库值」的算法",
+          "enum": [
+            "fuzzy_customer",
+            "fuzzy_product",
+            "number_normalize",
+            "date_parse",
+            "enum",
+            "enum_alias",
+            "lookup_price_list",
+            "order_lookup",
+            "order_line_items",
+            "passthrough"
+          ]
+        },
+        "askIfMissing": { "type": "boolean", "description": "缺失时是否反问（false = 可用默认值/推断值）" },
+        "inferFrom": { "type": "string", "description": "推断来源，依赖别的槽位，串行执行" },
+        "confidenceDefault": { "type": "number", "minimum": 0, "maximum": 1 },
+        "examples": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "few-shot 示例，直接进 prompt"
+        },
+        "notes": { "type": "string", "description": "设计意图，给人看，不参与编译" }
+      }
+    }
+  }
+}

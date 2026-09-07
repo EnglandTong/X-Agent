@@ -298,7 +298,7 @@ npm run asr:cer         # 评测集需先扩充到 >=30 条（现只有 3 条）
 > 派工单原验收写「规则槽位 ≥98%」—— 那是把旧基线 98.3% 当目标，实测口径下达不到；
 > 现在以**不劣化 + 实测提升**为准，数字见 `app/eval/BASELINE.md`（已按实测更正）。
 
-### T5 · 抽 `core/`（AI 骨干的准备动作，S0 级，不改现有代码）
+### T5 · 抽 `core/`（AI 骨干的准备动作，S0 级，不改现有代码）✅ 已完成（2026-09-08）
 
 这是 D1 决策（Owner 已拍板）的落地：**在 Agent_ERP 内抽 `core/`，不立刻开新仓。**
 
@@ -321,7 +321,15 @@ verbs 靠 manifest 声明登记进 registry，不靠代码引用。守住这条�
 | T2 | 第二个应用要接入 | S3 启动日 |
 | T3 | `app/`（23,915 文件）拖慢 core 迭代 | `tsc`/`npm install` > 30s |
 
-**验收**：`npx tsc --noEmit` 0 错误；`grep -r "from '\.\./server" src/core/` 为空。
+**验收（2026-09-08 实测，两条全过）**：
+
+| 验收项 | 结果 |
+|---|---|
+| `npx tsc --noEmit` 0 错误 | ✅ **0 错误** |
+| `grep -r "from '\.\./server" src/core/` 为空 | ✅ **为空**（core 里出现的 "server" 全是注释与文档文字） |
+
+**已落地**：`app/src/core/` = `00_MANIFEST.md`（协议一页纸）+ `manifest.schema.json`（结构声明）+ `run.ts`（Run 六态，纯类型）+ `registry.ts`（插件注册表，只登记）。
+**未接改动有代码**：core 暂不被 `server/` import —— 它是"搬得走"的准备，不是重构。
 
 ### T6 · 档案收口（每轮开发后必做）
 
