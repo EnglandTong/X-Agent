@@ -18,6 +18,8 @@
     "typecheck": "tsc --noEmit",
     "smoke:delivery": "tsx scripts/smoke-delivery-remaining.ts",
     "smoke:multiline": "tsx scripts/smoke-multiline-reserve.ts",
+    "hotwords": "tsx scripts/export-hotwords.ts",
+    "asr:cer": "tsx scripts/asr-cer.ts",
     "setup": "prisma generate && prisma db push --skip-generate && tsx prisma/seed.ts"
   },
   "dependencies": {

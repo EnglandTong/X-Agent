@@ -15,3 +15,15 @@ agt-erp-src.zip
 
 # eval run artifacts (keep utterances + failures.jsonl committed)
 app/eval/results/
+
+# large model weights (see app/models/OFFLINE_BUNDLE.md)
+*.onnx
+*.gguf
+*.bin
+*.pt
+*.safetensors
+app/models/asr/sensevoice/**
+!app/models/asr/sensevoice/.gitkeep
+!app/models/asr/sensevoice/README*
+app/models/llm/**/*.gguf
+app/models/llm/**/*.bin

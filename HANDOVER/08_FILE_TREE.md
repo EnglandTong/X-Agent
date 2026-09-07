@@ -31,7 +31,7 @@
 | `server/compile.ts` | 229 | Formily Schema → Tool Schema 编译器 + 编译期校验 | 双消费的实现 |
 | `server/agent.ts` | 595 | **核心编排**：意图 → 抽取 → 消解 → 推断 → 缺失判定 | 换模型只影响这里的第 2 步 |
 | `server/llm.ts` | 303 | OpenAI 兼容客户端（火山/DeepSeek/Ollama 通用）+ 连通性诊断 | 含 JSON 模式降级 |
-| `server/settings.ts` | 154 | 模型配置读写 `.env.local`、Key 掩码、模型预设 | Key 不进 git |
+| `server/settings.ts` | — | 模型配置、`qwen3:0.6b` 预设、`enginePriority` | Key 不进 git |
 | `server/resolve.ts` | 415 | 消解器：8 种 resolution 策略 | **确定性代码**，模型不参与；个人用语优先 |
 | `server/lexicon.ts` | — | 个人用语表 CRUD / 匹配 / 提议 | 非向量库 |
 | `server/remaining.ts` | — | 订单行剩余可出货量 | delivery.* 共用 |
@@ -56,16 +56,23 @@
 | `scripts/eval-interpret.ts` | 主评测：`npm run eval` |
 | `scripts/eval-lexicon.ts` | 用语表夹具：`npm run eval:lexicon` |
 | `scripts/eval-compare-models.ts` | 云端 vs 本地对比：`npm run eval:compare` |
+| `scripts/export-hotwords.ts` | ASR 热词导出：`npm run hotwords` → `models/asr/hotwords.txt` |
+| `scripts/asr-cer.ts` | SenseVoice CER 脚手架：`npm run asr:cer`（缺权重则跳过真实推理） |
 | `scripts/smoke-delivery-remaining.ts` | 部分出货 / 超量硬拦冒烟（断言 + 非 0 退出） |
 | `scripts/smoke-multiline-reserve.ts` | 多行订单 + 标量 qty 硬错 + 预留同步释放：`npm run smoke:multiline` |
 | `scripts/smoke-verbs.ts` | 12 动词冒烟 |
 | `scripts/trial-10-utterances.ts` | API 真链路 10 条：`npm run trial:10` |
 | `eval/utterances.jsonl` | 主评测样本 |
 | `eval/utterances.lexicon.jsonl` | 用语夹具样本 |
+| `eval/asr-utterances.jsonl` | ASR CER 参考转写样本 |
 | `eval/BASELINE.md` | 准确率基线 |
-| `eval/COMPARE_MODELS.md` | 对比说明 |
+| `eval/COMPARE_MODELS.md` | 对比说明（含 Qwen3-0.6B） |
 | `eval/failures.jsonl` | 错例 |
 | `eval/results/*` | 评测产物（compare-models / latest / summary） |
+| `models/OFFLINE_BUNDLE.md` | 分阶清单：当前 ASR≈229MB；0.6B 远期 |
+| `models/asr/hotwords.txt` | 热词（可进 Git；由 hotwords 脚本生成） |
+| `models/asr/sensevoice/` | SenseVoice int8（**当前本地语音**；权重不进 Git） |
+| `models/llm/qwen3-0.6b/` | 本地大脑说明（**现阶暂缓**） |
 
 ---
 
@@ -77,7 +84,7 @@
 | `ui/ConfirmCard.tsx` | 231 | 待确认格：Formily 渲染 + 推断值高亮 + 三种提交文案 |
 | `ui/PanelCard.tsx` | 131 | 历史格：编号、状态、修订/确认按钮（按实时状态分流） |
 | `ui/ResultView.tsx` | 178 | 结果展示：含 `originNo` / `supersededByNo` / `chainId` |
-| `ui/SettingsModal.tsx` | 237 | **模型设置面板**：填 Key、选模型、测连通 |
+| `ui/SettingsModal.tsx` | — | **模型设置面板**：云端 LLM；本地 0.6B 标「可选·暂缓」 |
 | `ui/formily.tsx` | 32 | Formily 与 antd 的桥接 |
 | `ui/widgets.tsx` | 67 | 自定义控件（客户/产品/实体选择器） |
 | `types.ts` | 66 | 前后端共享类型（避免前端拖进 Prisma） |

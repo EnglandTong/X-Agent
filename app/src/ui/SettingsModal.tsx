@@ -23,6 +23,14 @@ interface SettingsView {
   apiKey: string
   hasKey: boolean
   presets: string[]
+  localQwen06?: {
+    provider: string
+    baseUrl: string
+    apiKey: string
+    model: string
+    timeoutMs: number
+  }
+  enginePriority?: string
 }
 
 interface TestResult {
@@ -139,19 +147,48 @@ export function SettingsModal({
               optionType="button"
               buttonStyle="solid"
               options={[
-                { label: '规则引擎（离线）', value: 'rules' },
-                { label: '云端模型', value: 'openai' },
+                { label: '规则回落', value: 'rules' },
+                { label: 'LLM 大脑', value: 'openai' },
               ]}
             />
           </Form.Item>
+          {base?.enginePriority && (
+            <div style={{ fontSize: 11, color: '#8c8c8c', marginTop: -8, marginBottom: 8 }}>
+              优先级：{base.enginePriority}
+            </div>
+          )}
 
           {provider === 'openai' && (
             <>
+              {base?.localQwen06 && (
+                <Button
+                  size="small"
+                  type="dashed"
+                  block
+                  style={{ marginBottom: 12 }}
+                  onClick={() => {
+                    const p = base.localQwen06!
+                    form.setFieldsValue({
+                      provider: 'openai',
+                      baseUrl: p.baseUrl,
+                      apiKey: p.apiKey,
+                      model: p.model,
+                      timeoutMs: p.timeoutMs,
+                    })
+                  }}
+                >
+                  可选·暂缓：本地 Qwen3-0.6B（现阶请用云端）
+                </Button>
+              )}
               <Form.Item
                 name="baseUrl"
                 label={<span style={{ fontSize: 12 }}>接口地址（OpenAI 兼容）</span>}
                 rules={[{ required: true, message: '必填' }]}
-                extra={<span style={{ fontSize: 11 }}>火山方舟填 https://ark.cn-beijing.volces.com/api/v3</span>}
+                extra={
+                  <span style={{ fontSize: 11 }}>
+                    云端：火山 ark…/api/v3 · 本地：http://127.0.0.1:11434/v1
+                  </span>
+                }
               >
                 <Input placeholder="https://ark.cn-beijing.volces.com/api/v3" />
               </Form.Item>

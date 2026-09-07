@@ -32,6 +32,7 @@ export interface LlmSettings {
 }
 
 export const DEFAULT_SETTINGS: LlmSettings = {
+  /** 无 Key 时回落 rules；有云端/本地 Key 时应切 openai（产品默认：LLM 优先） */
   provider: 'rules',
   baseUrl: 'https://ark.cn-beijing.volces.com/api/v3',
   apiKey: '',
@@ -39,7 +40,7 @@ export const DEFAULT_SETTINGS: LlmSettings = {
   timeoutMs: 20000,
 }
 
-/** 火山方舟常用模型（下拉快捷选项，也可手填任意模型名 / ep-xxx 接入点） */
+/** 快捷模型名（云端 + 本地断网目标） */
 export const MODEL_PRESETS = [
   'doubao-seed-2.0-mini',
   'doubao-seed-2.0-pro',
@@ -48,7 +49,19 @@ export const MODEL_PRESETS = [
   'kimi-k2.7-code',
   'deepseek-v4-flash',
   'deepseek-v4-pro',
+  /** 远期可选本地大脑（Ollama）；现阶不要求本机运行 */
+  'qwen3:0.6b',
+  'qwen3:1.7b',
 ]
+
+/** 本地 Qwen3-0.6B 快捷项（可选·暂缓；默认仍用云端） */
+export const LOCAL_QWEN06_PRESET: Partial<LlmSettings> = {
+  provider: 'openai',
+  baseUrl: 'http://127.0.0.1:11434/v1',
+  apiKey: 'ollama',
+  model: 'qwen3:0.6b',
+  timeoutMs: 60000,
+}
 
 // ---------------------------------------------------------------- 解析 .env.local
 
@@ -150,5 +163,7 @@ export function publicView(s: LlmSettings) {
     apiKey: maskKey(s.apiKey),
     hasKey: !!s.apiKey,
     presets: MODEL_PRESETS,
+    localQwen06: LOCAL_QWEN06_PRESET,
+    enginePriority: 'cloud_llm > rules（ASR 本地化；本地 LLM 暂缓）',
   }
 }
