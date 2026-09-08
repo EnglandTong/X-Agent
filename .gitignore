@@ -23,6 +23,8 @@ agt-erp-src.zip
 app/eval/results/
 # ASR 评测音频（由 npm run asr:wavs 生成，不入库）
 app/eval/asr-wavs/
+# 真人录音语料（画布「存为语料」生成，含人声，绝不入库）
+app/eval/asr-wavs-real/
 *.wav
 
 # large model weights (see app/models/OFFLINE_BUNDLE.md)

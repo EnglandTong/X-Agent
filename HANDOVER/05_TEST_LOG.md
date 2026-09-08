@@ -34,6 +34,7 @@
 | 24 | **画布渲染崩溃（UI 缺陷，T1 后被 Owner 首次真用时撞到）** | 浏览器开 `http://localhost:3001` | ❌ 旧：`ResultView` 对**所有非 `order.query` 动词**都按订单取 `data.amount`，而 `inventory.query`（`{rows:[]}`）/`credit.check`/`delivery.*` 没有该字段 → `undefined.toLocaleString()` → **整页白屏**。✅ 已修：金额统一走 `money()` 安全格式化 + 非对象 data 不按订单渲染 + 缺字段不渲染该行（见下表「已修缺陷」） |
 | 25 | **T2 · SenseVoice int8 权重就位** | `ls app/models/asr/sensevoice/` + `npm run hotwords` | ✅ `model.int8.onnx` **228.15 MB**（>200MB）；`tokens.txt` 308KB；`npm run hotwords` → **24 条**（4 客户名 + 4 客户编码 + 3 产品名 + 3 产品编码 + 3 仓库 + 7 动词词）。⏸ **CER 未实跑**：缺 sherpa-onnx 运行时 |
 | 26 | **T3 · 真口吻评测集 + 两档基线** | `npm run eval:asr`（云端）/ `BASE_URL=:3002 npm run eval:asr`（规则档） | 样本 **39 条**（要求 ≥30）；**云端 97.3%（36/37）· 规则档 78.4%（29/37）—— 差 18.9 个百分点**。规则档最弱是「出货」类（4 条全错）。分类：date 83%、其余 100%（云端档） |
+| 35 | **「耳」接进画布（本地 SenseVoice 上实链路）** | `npm run typecheck` / `asr:cer` / `verify:asr` / `curl --data-binary` / 设置往返 / corpus 守卫 / 改名冒烟 | ✅ **同一份实现**：`asr-transcribe.ts` 改为 `import src/server/asr.ts` 后 `npm run asr:cer` **复现 34.02% · 10/39 · 27/55**（与 B 项报告除时间戳外逐字相同 → 抽构造代码没改行为）。✅ **等价验证 `npm run verify:asr`：39/39 hyp 与报告逐字相同**；性能 decodeMs **p50=117 p90=156 max=188** · RTF **p50=0.039**。✅ 手工复现：`curl -X POST --data-binary @eval/asr-wavs/asr-01.wav -H "Content-Type: application/octet-stream" :3001/api/asr` → `给张三百五十个 a 杠一百`（与报告同一句，证明确实走了本地引擎：三证齐全 = `state unloaded→ready` + 日志 `[asr] LOAD ms=` + `decodeMs` 非空）。✅ 设置：`GET /api/settings` 出 `asrEngine`；`ASR_ENGINE` 为 `loca`/空/`junk` → **回落 browser**，`LOCAL` 大小写不敏感；PUT `local` → `state=ready loadMs=1278`（保存即后台预热）→ PUT `browser` 全程 **provider 未被降级、Key 仍是掩码**。✅ 降级不崩：临时改名 `tokens.txt` → `200 + model_missing` + 4 步 hint（还原后 `git status` 干净）；`engine=browser` 时 `POST /api/asr` → `skipped:disabled` 且**不加载权重**（冷启动 `state=unloaded` 佐证）。✅ corpus 守卫：正常写盘**字节全等** / 重复 **409** / `?overwrite=1` 200 / 非 WAV **400** / 空 body **400** / `%2F`、`%5C`、点号、41 字符 id **全 400**，仓库内外没长出野文件。✅ **双目录优先级**：把 asr-02 的音频放成 `asr-wavs-real/asr-01.wav` → 报告 asr-01 行 hyp 变成 asr-02 的文本（平均 CER 34.02→34.88），删掉后**复现 34.02** → 真人录音一旦导出，`asr:cer` 即真数字。✅ 回归四闸门：`typecheck` **0 错误**、规则 **96.2%/95.3%**、模型 **100%/100%**、真口吻 39 条 **97.4%** —— 本轮没碰 `agent/`，全部不劣化。⏳ **浏览器采音未测**（唯一不能命令行自证的环节，见 §二） |
 | 34 | **CER 实测（B 项 · 本地 SenseVoice）** | `npm run asr:wavs` 造音频 → `SHERPA_ASR_CMD="npx tsx scripts/asr-transcribe.ts" npm run asr:cer` | ✅ 运行时就位（`sherpa-onnx-node` 1.13.7 + int8 权重），39 条全部识别成功：**平均 CER 34.02% · 完全命中 10/39 · 专有名词 27/55 = 49.1%**；分类最弱 `qty` 62.2%（型号+数量连读）。⚠️ **音频是 SAPI 合成语音**（无真人录音）→ 数字偏乐观，只证明「链路通 + 中文能识别」；报告见 `app/eval/results/asr-cer.md` |
 | 33 | **「嘴」接进画布（A 项）** | `POST /api/speak` + 端到端（interpret → run → 播报）+ 关开关 + 回归 | ✅ 一句话查单 → 结果「查到 9 张订单，合计 ¥13,555.00」→ `{"ok":true,"ms":8181}`；`TTS_ENABLED=0` 时返回 `skipped:disabled` 且**不出声**。**客观证据**：同一条命令合成出 **230,820 字节 wav**（证明中文真在发声，而非"退出码 0"）。回归：53 条 规则 **96.2%/95.3%** · 模型 **100%/100%**；真口吻 39 条 **97.4%** —— 均不劣化 |
 | 32 | **D11 · 只读低置信附「我不确定」** | `npm run eval:asr`（规则档）+ 三句实测 | ✅ 信号词通用兜底 0.9→0.72/0.78；**只读且 <0.75 时附 question**。实测：断网档「杠笔多少钱」/「华东仓还有多少A-100」→「这个我不太确定（把握 72%…）」；「查一下张三最近订单」（0.75）不受影响。规则档真口吻 78.9%（不劣化）。**G2 收口** |
@@ -49,6 +50,7 @@
 
 | 项 | 为什么没验 | 怎么验 |
 |---|---|---|
+| **浏览器录音这条链路（本地耳朵的真人体感）** | 本机无 ffmpeg、无头浏览器 `getUserMedia` 能否授权未知 → **全场唯一不能命令行自证的环节**。服务端那半截已用 `curl --data-binary` + `verify:asr` 钉死，缺的只是「浏览器封的 WAV 与服务端读的字节是否同一形状」 | ① 设置面板切「本地 SenseVoice」→ 仅保存 → 点「耳朵自检」应回 `已就绪 · 加载 XXXms`；② 点麦克风说「查一下张三最近订单」→ 输入框应出现本地引擎的中文读法风格文本（型号会写成 `a 杠一百` 这类，正是与 Web Speech 的可辨差异）→ 画布出 `order.query` 卡 → 听到 SAPI 播报；③ 点「存为语料」；④ 切回「浏览器」录同一句 → **两版文本并排抄回本文件**；⑤ 顺带 `npm run asr:cer` → 真人 CER 就是那一行的真数字 |
 | **本地小模型准确率** | 未配 Ollama / LOCAL_LLM_* | 见 `eval/COMPARE_MODELS.md` |
 | 画布人手点「记住」手感 | T1 已走 **API 等价路径**（写用语 → 回验命中）；**UI 按钮仍没人点过** | 本机开画布，提交后点一次「记住」，看提议卡片 |
 | **自然语言「记住：A 就是 B」** | **没有 `lexicon.remember` 动词**，口吻被判成 `customer.query` / `credit.check` | 见第五节 G1；是否补动词需 Owner 拍板 |
@@ -68,7 +70,7 @@
 > **2026-09-08 更正**：此处原写「规则槽位 98.3%」为旧值，实测 95.0%（T4 前是 91.7%，修掉数量误抽后升至 95.0%）。
 > 另一把尺子（真口吻 39 条）：云端 97.3% / 规则 **78.4%** —— 详见 `app/eval/BASELINE.md`。
 
-连通性测试已通过。语音输入：UI 已接 Web Speech API（需浏览器授权麦克风）。
+连通性测试已通过。语音输入：**两只耳朵可选**（`browser` = Web Speech，默认；`local` = 服务端 SenseVoice），麦克风按钮的 `title` 显示当前用的是哪只。改过 UI 必须 `npm run build` 才能在 **3001** 看到（3001 发的是 `dist`），或用 **5173** 直接走 vite。
 
 ---
 
@@ -109,9 +111,27 @@ curl -s localhost:3001/api/panels/<panelId>/chain
 # 7. 模型设置
 curl -s localhost:3001/api/settings
 curl -s -X POST localhost:3001/api/settings/test
+# ★ 必须整体回传：PUT 只带部分字段会把 provider 静默降成 rules（见 07_OPS §七 技术债）
 curl -s -X PUT localhost:3001/api/settings -H 'Content-Type: application/json' \
   -d '{"provider":"openai","baseUrl":"https://ark.cn-beijing.volces.com/api/v3",
        "apiKey":"<你的Key>","model":"doubao-seed-2.0-mini","timeoutMs":20000}'
+
+# 8. 语音：嘴（播报）与耳（识别）
+curl -s -X POST localhost:3001/api/speak -H 'Content-Type: application/json' \
+  -d '{"text":"语音播报已开启"}'
+curl -s localhost:3001/api/asr/status      # supported / modelReady / state / loadMs / rssMiB
+curl -s -X POST localhost:3001/api/asr/warm # 把权重真起来一次（面板「耳朵自检」就是这个）
+# 原始 WAV 字节（全仓唯一非 JSON body；漏掉 Content-Type 会 415）
+curl -s -X POST --data-binary "@app/eval/asr-wavs/asr-01.wav" \
+  -H 'Content-Type: application/octet-stream' localhost:3001/api/asr
+# 期望：{"ok":true,"text":"给张三百五十个 a 杠一百","decodeMs":117,...,"engine":"local-sensevoice"}
+#       前置：ASR_ENGINE=local npm run serve（默认 browser 时回 skipped:disabled）
+# 把任意一段 WAV 存成真人语料（同 id 会被 asr:cer 优先采用）
+curl -s -X PUT --data-binary "@mine.wav" \
+  -H 'Content-Type: application/octet-stream' localhost:3001/api/asr/corpus/real-20260909-01
+
+npm run verify:asr   # 「耳」等价验证：39 条 HTTP vs 报告逐字比 + decodeMs/RTF 分布
+npm run asr:cer      # CER 报告（需先 set SHERPA_ASR_CMD=npx tsx scripts/asr-transcribe.ts）
 ```
 
 ---

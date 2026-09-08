@@ -217,7 +217,7 @@ Owner 拍板（含当日澄清）：
 | modality | 辨认器 | 当前状态 |
 |---|---|---|
 | `text` | 无（原生） | ✅ 键盘 / 输入法 —— **已有，最易被忽略的一官** |
-| `audio` | ASR | 🟡 Web Speech 占位 → T2 SenseVoice int8（229MB，未开始） |
+| `audio` | ASR | ✅ **两只耳朵、一种 modality**：`browser`（Web Speech，默认）/ `local`（SenseVoice int8 229MB，服务端 `POST /api/asr`）。辨认器由 `asrEngine` 选，**协议与 `/api/interpret` 一字未动**（同 `speak.ts` 的「嘴」） |
 | `image` | OCR（远期 VLM） | 🔴 远期 |
 | `touch` | 力/触觉传感 + 设备控制 | 🔴 远期（机器人 / 自动驾驶） |
 | `thermal` / `smell` / … | 各自传感器 | 🔴 远期，仅预留 |
@@ -344,4 +344,29 @@ Owner 拍板（含当日澄清）：
 **记 backlog（本轮明确不做）**：
 
 - ASR 文本规整层：把 `a杠一百`/`a 一 零 零` 归一回 `A-100`，用主数据词典反查。**这是提升真实准确率性价比最高的一步**，但属新能力，需单开工单。
-- 真人录音 39 条重测 CER（Owner 念一遍即可，脚本已支持覆盖同 id）。
+- 真人录音 39 条重测 CER（Owner 念一遍即可，脚本已支持覆盖同 id）。**→ 2026-09-09 已有落点**：画布「存为语料」写 `eval/asr-wavs-real/`，`asr:cer` 优先读它（见十六）。
+
+---
+
+## 十六、「耳」接进画布：被测的耳朵 = 在用的耳朵（2026-09-09）
+
+| 议题 | 结论 |
+|---|---|
+| 为什么非接不可 | 十五那个 **34.02%** 描述的是**一个候选引擎**，不是用户会遇到的表现：画布的语音输入是浏览器 Web Speech，`src/server/` 下**没有任何 ASR 路由**。数字与体感不同源，评测就只是自我安慰 |
+| 怎么保证不出现两份实现 | **不给离线评测另写一份识别代码**。`scripts/asr-transcribe.ts` 删掉自带的 require + 构造，改为 `import` `src/server/asr.ts`。证明方式不是"看起来一样"：`npm run verify:asr` 把 39 条 wav 逐条 `POST /api/asr`，与 CER 报告的 hyp **逐字比 → 39/39 相同**；CER 因此**故意不重算**（重算就是第二份 `cer()` 实现） |
+| 采集为什么在浏览器封 WAV | 服务端**没有 ffmpeg**，`MediaRecorder` 的 webm/opus 解不了；`decodeAudioData` 要多跑一趟编解码且产出 48k/立体声（3–6 倍字节）。`AudioContext({sampleRate:16000})` + ScriptProcessor 直采 16k，**顺带消掉 sherpa 每次调用往 stderr 刷的 `Creating a resampler`**。不上 AudioWorklet：要额外产物文件 + vite 构建耦合，而本用例每秒约 4 次 16KB 拷贝不构成主线程压力 |
+| ★ **必须 `createAsync` / `decodeAsync`** | 实测：同步 `new OfflineRecognizer()` 期间 20ms ticker **走 0 次**（事件循环冻死），async 版走 **40 次**。冻住会连带卡死 `/api/interpret` 与静态资源。**这条别改回去**，注释已写在 `asr.ts` 头部 |
+| 不做「卸载模型」按钮 | native 原型只有 `constructor,createStream,setConfig,decode,decodeAsync,getResult` —— **没有 free/destroy**。加载实测 **61→364MiB（+303MiB）不可回收**。兑现不了的按钮不做，改为把代价写进 UI 文案（面板：`加载后服务常驻约 XXXMiB，且不可回收`） |
+| 默认引擎 = `browser`（Owner 定） | **默认态即回退态**：`asr.ts` 顶层零副作用 → 默认下 `/api/asr`、`voiceRecorder.ts` 全不被触达，连 native 包都不 require。三层回退任一层单独生效就回到接线前的行为：代码（默认 browser）/ 配置（面板或 `ASR_ENGINE=browser`，免重启）/ 物理（权重改名 → 恒 200 + `model_missing`） |
+| 识别失败**不**回落另一只耳朵 | 会重新引入本轮要消灭的歧义 —— 分不清是哪只耳朵听错的字。`startVoiceLocal()` 失败只给可读文案（`ASR_REASON` 表），**绝不静默改用 Web Speech** |
+| 文本规整落点 = `/api/interpret` 入口 | 不放 `asr.ts`：**浏览器引擎的文本同样要救**（Web Speech 一样会把型号听歪）。规整仍是独立工单，本轮不做 |
+| 上传格式 | `application/octet-stream` 原始字节（**全仓第一个非 JSON body**）：比 base64 省 33%、免两端编解码、`curl --data-binary` 可直接手工复现。`bodyLimit` 2MiB≈65s；域内 15s 上限由 `asr.ts` 自己数（Fastify v5 **无 per-route bodyLimit**），回 `too_long` 而不是裸 413 |
+| 并发不按「嘴」抄 | `speak.ts` 的串行队列理由是"SAPI 是外部单例资源"。async 解码不阻塞事件循环 → 改为 `inflight>=2 → busy`，防的是**并发加载两次 = 双倍 300MB** |
+| 真人语料 | `PUT /api/asr/corpus/:id` → `eval/asr-wavs-real/<id>.wav`。安全边界（服务默认绑 `0.0.0.0`，这是个局域网可达的写盘口子）：id `^[A-Za-z0-9_-]{1,40}$`、只认 `RIFF`、`path.resolve` 后断言仍在该目录内、基目录硬编码不接受前端传入、默认 409 拒绝覆盖（`?overwrite=1` 才覆盖）。**含真人声音 → 不进 git**。实测：穿越 `%2F`/`%5C`/点号/超长全部 400，仓库内外都没长出野文件 |
+| SenseVoice 不收热词 | `models/asr/hotwords.txt` 继续只当**文本规整词典原料**；`asr.ts` 里注释了一句，免得下次有人去接热词（十五已证：仅 transducer + `modified_beam_search` 支持） |
+
+**本机实测（写进 `07_OPS` §六）**：加载 **853 / 1278 / 1466ms** · 39 条 HTTP `decodeMs` **p50=117 p90=156 max=188** · RTF **p50=0.039**（≈25 倍实时）· hyp **39/39 逐字一致** · 回归四闸门不劣化：`typecheck` 0 错误、规则 **96.2%/95.3%**、模型 **100%/100%**、真口吻 **97.4%**。
+
+**诚实边界**：浏览器采音是全场**唯一不能命令行自证**的环节（本机无 ffmpeg，无头浏览器 `getUserMedia` 能否授权未知）。对策是让它可自证而不是假装测过：`encodeWav` 是纯函数（devtools 喂 `new Int16Array([1,-1,0])` 即可核对头 12 字节），「存为语料」之后同一段字节能在浏览器外用 `curl --data-binary` 复现。人工手测步骤见 `05_TEST_LOG`。
+
+**验收口径要先对齐**：接上耳朵之后 34% CER **会立刻变成体感退化**（型号读法第一次真砸到体验上）。那不是回归，是"耳朵换对了"的证据；救它的是**文本规整**工单。

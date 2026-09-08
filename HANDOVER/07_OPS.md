@@ -149,20 +149,36 @@ copy app\.env.example app\.env
 | `tsx` 报 `ERR_REQUIRE_ASYNC_MODULE` | 脚本不在项目目录（被当 CJS） | 临时脚本放进 `app/` 再跑，跑完删 |
 | `npm run say` 打印「没出声」或抛 `spawn EPERM` | PowerShell **`-EncodedCommand`** 被本机环境拦截 | 已改 `-Command` + 单引号字面量（见 `04_DECISIONS` 十四）；**别改回去** |
 | CER 里型号全错（`A-100` → `a 杠一百`） | SenseVoice 把型号按中文读法念出来 | 待办：ASR 后处理规整 —— **记 backlog，本轮不做** |
+| `POST /api/asr` 回 **415** | `fetch` 传 `ArrayBuffer` **不会自动带 Content-Type** | 前端必须显式写 `'Content-Type': 'application/octet-stream'`（`App.tsx` 里已注明） |
+| 第二句识别混着第一句的字 | 复用了同一个 `OfflineStream`（它会累加音频） | `asr.ts` **每请求新建 stream**；这条最能伪装成"模型有问题" |
+| 改了 `src/server/asr.ts` 没反应 | `npm run serve` **没有 watch** | 重启服务；旧 node 进程是"改了没生效"的头号嫌疑 |
+| 3001 上看不到新按钮/新面板项 | 3001 发的是 `dist`（`@fastify/static`） | `npm run build` 后刷新；改 UI 期间直接用 **5173**（vite 代理只转 `/api`，二进制照转） |
 | 推送 GitHub 失败 | **沙箱网络被屏蔽** | 只能本地推（见上） |
 
 ---
 
 ## 六、跑 ASR / CER（「听」的自检）
 
-运行时 `sherpa-onnx-node` 已在 `devDependencies`（`npm i` 自带）；**权重不进 Git**，按 `app/models/OFFLINE_BUNDLE.md` 自行下载。
+运行时 `sherpa-onnx-node` 在 `dependencies`（`npm i` 自带，平台包 `sherpa-onnx-win-x64` 约 22.5MB 走 optionalDependencies 过滤）；**权重不进 Git**，按 `app/models/OFFLINE_BUNDLE.md` 自行下载。
+
+**耳朵有两只**，画布上「设置 → 语音输入引擎」选，或直接写 `app/.env.local` 的 `ASR_ENGINE=browser|local`：
+
+| 引擎 | 走法 | 说明 |
+|---|---|---|
+| `browser`（**默认**） | 浏览器 Web Speech API，文本直进 `/api/interpret` | 零成本、零权重；本轮接线**没有改变默认行为** |
+| `local` | 浏览器采 16k WAV → `POST /api/asr` → SenseVoice | 服务端加载权重；不依赖浏览器实现，离线可用 |
 
 ```powershell
 cd app
-npm run hotwords        # 重导热词（客户/产品/仓库/动词词）
+npm run hotwords        # 重导热词（客户/产品/仓库/动词词）→ 文本规整原料，SenseVoice 用不上
 npm run asr:wavs        # 造评测音频 → eval/asr-wavs/（不入库）
 $env:SHERPA_ASR_CMD = 'npx tsx scripts/asr-transcribe.ts'
-npm run asr:cer         # 出 eval/results/asr-cer.md
+npm run asr:cer         # 出 eval/results/asr-cer.md（39 次进程内推理，走的就是服务端那份 asr.ts）
+
+# 线上链路自检（需要服务在跑：ASR_ENGINE=local npm run serve）
+npm run verify:asr      # A 逐字等价 39/39 · B CER 口径 · C 真人语料计数 · D decodeMs/RTF 分布
+curl -s -X POST --data-binary "@eval/asr-wavs/asr-01.wav" -H "Content-Type: application/octet-stream" http://127.0.0.1:3001/api/asr
+curl -s http://127.0.0.1:3001/api/asr/status   # supported/modelReady/state/loadMs/rssMiB
 ```
 
 | 指标 | 2026-09-08 基线（39 条） |
@@ -172,8 +188,19 @@ npm run asr:cer         # 出 eval/results/asr-cer.md
 | 专有名词命中率 | 27/55 = **49.1%** |
 | 最弱分类 | `qty` 62.2%（型号 + 数量连读） |
 
+本机实测（2026-09-09，「耳」接进画布那轮）：
+
+| 项 | 数字 | 备注 |
+|---|---|---|
+| 权重加载 `createAsync` | **853 / 1278 / 1466ms**（三次） | 必须 async 版：同步 `new OfflineRecognizer()` 实测**冻死事件循环**（20ms ticker 走 0 次 vs 40 次），会连带卡住 `/api/interpret` 和静态资源 |
+| 进程 RSS | 61 → **364MiB（+303MiB）**，服务稳定在 384–415MiB | native **没有释放接口** → 这 300MB 不可回收，所以不做「卸载模型」按钮 |
+| 单条解码 | 3.22s 音频 → 116–124ms | |
+| 39 条 HTTP 实走 | decodeMs **p50=117 p90=156 max=188**；RTF **p50=0.039**（≈25 倍实时） | `npm run verify:asr` 输出 |
+| 离线 vs 线上 | **39/39 hyp 逐字相同** | 同一份 `asr.ts`，评测脚本 `import` 它而不是另写一遍 |
+
 > 音频是 **SAPI 合成**的：发音标准、无噪声 → 数字**偏乐观**。
-> 真人口音：另录真人 wav，按同 id 覆盖 `eval/asr-wavs/` 再跑即可。
+> 真人录音放 `eval/asr-wavs-real/<id>.wav`（同 id **优先于** `eval/asr-wavs/`，`asr-cer.ts` 已实现双目录查找）。
+> 画布录完一句点 **存为语料** 就直接落这个目录（`PUT /api/asr/corpus/:id`，原始 WAV 字节）。这个目录含真人声音，**同样不进 Git**。
 > SenseVoice **不支持 hotwords**（只有 transducer + modified_beam_search 支持），
 > 所以专有名词只能靠**识别后的文本规整**救，不能靠热词表。
 
@@ -183,8 +210,10 @@ npm run asr:cer         # 出 eval/results/asr-cer.md
 
 | 债 | 影响 | 建议时机 |
 |---|---|---|
-| `tsc --noEmit` 有约 10 处类型错误 | 不影响运行（tsx 不做类型检查） | 接模型前清一遍 |
-| `ConfirmCard` 的 `submitLabel` 未声明类型 | 同上 | 同上 |
+| **`PUT /api/settings` 的 `provider` 不遵守「不传即不改」**（`index.ts:162`：`b.provider === 'openai' ? 'openai' : 'rules'`） | 任何**只带部分字段**的 PUT 都会把线上 `LLM_PROVIDER=openai` 静默降成 `rules` 并写进 `.env.local`。面板整体回传所以没触发，本轮实测靠**进程环境变量**绕开，未修 | 下次动 settings 路由时改成 `b.provider === 'openai' ? 'openai' : b.provider === 'rules' ? 'rules' : cur.provider`；其余字段已是这个写法 |
+| ~~`tsc --noEmit` 有约 10 处类型错误~~ | **已清**：2026-09-09 实测 `npm run typecheck` **0 错误** | — |
+| `tsconfig.json:21` 只 include `src`/`prisma`/`vite.config.ts` → **`scripts/` 不在类型闸门内** | 改脚本后 tsc 不会报错，症状是"类型没问题但跑不起来" | 动过 `scripts/` 必须手跑对应脚本 |
+| ~~`ConfirmCard` 的 `submitLabel` 未声明类型~~ | **已清**：`ConfirmCard.tsx:21` 有 `submitLabel?: string`（2026-09-09 复核） | — |
 | `hydrateInference` 里有未清理的占位代码 | 可读性 | 下次动到该文件时 |
 | Panel 清空是硬删除 | 与「不可变」原则冲突 | 正式版改为「开新画布」 |
 | 单会话（`sessionId="default"`） | 不能多人 | 需要多用户时 |

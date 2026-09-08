@@ -21,6 +21,8 @@ const ROOT = join(__dirname, '..')
 const EVAL = join(ROOT, 'eval')
 const ASR_DIR = join(ROOT, 'models/asr')
 const WAV_DIR = join(EVAL, 'asr-wavs')
+/** 画布「存为语料」的落点：真人录音一旦存在就优先于合成语音 */
+const REAL_DIR = join(EVAL, 'asr-wavs-real')
 const RESULTS = join(EVAL, 'results')
 
 interface Sample {
@@ -86,7 +88,12 @@ function loadEntities(): string[] {
 }
 
 function wavOf(s: Sample): string | null {
-  const candidates = [s.wav, join(WAV_DIR, `${s.id}.wav`)].filter(Boolean) as string[]
+  // 真人优先：合成语音的 CER 偏乐观，同一条 id 只要有真人录音就用它
+  const candidates = [
+    s.wav,
+    join(REAL_DIR, `${s.id}.wav`),
+    join(WAV_DIR, `${s.id}.wav`),
+  ].filter(Boolean) as string[]
   for (const c of candidates) {
     const p = isAbsolute(c) ? c : join(ROOT, c)
     if (existsSync(p)) return p

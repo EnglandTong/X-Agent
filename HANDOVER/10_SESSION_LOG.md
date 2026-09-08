@@ -165,3 +165,27 @@ Owner 的关键话 → 定论：
 | 「离开电脑，把所有情况整理进 Handoff，交给 Workbuddy」 | 本节 + `12_HANDOFF` 〇-b 节 + `00` v1.4；**不改代码**；3 commit 待推送（GitHub 抽风） |
 
 **本轮交付**：T1–T5 全清 · TTS · D10/D11 · 记忆网络 v1 · `core/` · 四件套评测 · README 英文化 · 档案七处漂移更正。
+
+---
+
+## 阶段十 · 「耳」接进画布（2026-09-09）
+
+Owner 的关键话 / 发生的事 → 定论：
+
+| 经过 | 结论 |
+|---|---|
+| 上一轮 B 项跑出 CER 34.02%，核对后发现**画布上根本没有这条链路**（语音输入是浏览器 Web Speech，服务端零 ASR 路由） | 那个数字描述的是**一个候选引擎**，不是用户会遇到的表现 → 本轮目标定为**「被测的耳朵 = 在用的耳朵」** |
+| 下一步选哪条 → **「接「耳」进画布」** | 服务端 `POST /api/asr` + 浏览器采音 + 设置面板可切 |
+| 范围 → **全做完（含录音 UI）** | 不留半截：采集 / 上传 / 服务 / UI / 导出一次打通，但**按 8 步落码、每步独立验收** |
+| 默认引擎 → **`browser`** | **默认态即回退态**：`asr.ts` 顶层零副作用，默认下连 native 包都不 require。三层回退（代码 / 配置 / 物理）任一层单独生效就回到接线前 |
+| **「顺手做导出刚才这段录音」** | 真人语料是 CER 唯一缺口 → `PUT /api/asr/corpus/:id` 写 `eval/asr-wavs-real/`，`asr:cer` **优先读它**。实测：把 asr-02 的音频放成 `asr-wavs-real/asr-01.wav`，报告 asr-01 行的 hyp 立刻变成 asr-02 的文本（34.02→34.88），删掉即复现 |
+| 怎么保证不出「两份实现各自漂移」 | **不另写识别代码**：评测 CLI `import` 服务端那份 `asr.ts`；证明方式是 39 条 wav 的 **hyp 逐字等价 39/39**，不是"看起来一样"。CER **故意不重算** —— 重算就是第二份 `cer()` |
+| 实测：同步 `new OfflineRecognizer()` 期间 20ms ticker **走 0 次**（async 版 40 次） | ★ **必须 `createAsync` / `decodeAsync`**，否则冻死事件循环、连带卡住 `/api/interpret` 与静态资源。写进 `asr.ts` 头部注释 |
+| 实测：加载 **61→364MiB（+303MiB）**，native 原型**没有 free/destroy** | **不做「卸载模型」按钮**（兑现不了）；改为把代价写进面板文案「常驻约 XXXMiB，且不可回收」 |
+| 识别失败要不要自动改用浏览器引擎再听一遍 | **不**。那会重新引入本轮要消灭的歧义 —— 分不清是哪只耳朵听错的字。只给可读文案（`ASR_REASON`） |
+| 我的一处错判（当场更正） | 我先说 `readWaveFromBinary` 从包主入口导出 —— 实际主入口只有 `readWave`/`writeWave`，它在 `addon.js` **子路径**（包无 `exports` 字段才可直接 require）。已按子路径实现 + 15 行自解 WAV 头兜底。**登记为 Accepted With Risk**：升 `sherpa-onnx-node` 版本时要重新确认 |
+| 本轮撞上的既有缺陷（**只登记、未修**） | `PUT /api/settings` 的 `provider` 不遵守「不传即不改」（`index.ts:162`）→ 只带部分字段的 PUT 会把线上 `openai` 静默降成 `rules` 并写进 `.env.local`。实测改用**进程环境变量**绕开以免污染配置文件。已进 `07_OPS` §七 技术债 |
+| 「34% CER 接上耳朵后第一次真砸到体验」 | **验收口径先对齐**：那是"耳朵换对了"的证据，不是回归；救它的是**文本规整**工单（落点 `/api/interpret`，因为浏览器引擎的文本同样要救） |
+| 浏览器采音无法命令行自证（本机无 ffmpeg、无头浏览器授权未知） | **不假装测过**：交人工手测（步骤在 `05_TEST_LOG` §二），同时让它**可**自证 —— `encodeWav` 是纯函数，录完能「存为语料」再在浏览器外用 `curl --data-binary` 复现同一段字节 |
+
+**本轮交付**：`src/server/asr.ts`（「耳」，与离线评测共用同一份实现）· `src/ui/voiceRecorder.ts` · `POST /api/asr` + `/api/asr/status` + `/api/asr/warm` + `PUT /api/asr/corpus/:id` · `asrEngine` 设置四处 + 面板单选与「耳朵自检」· `npm run verify:asr`（**39/39 逐字等价 · RTF p50 0.039**）· 四闸门回归全不劣化（typecheck 0 · 96.2%/95.3% · 100%/100% · 97.4%）。

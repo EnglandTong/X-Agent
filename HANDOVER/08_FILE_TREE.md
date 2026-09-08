@@ -41,13 +41,14 @@
 
 | 文件 | 行 | 职责 | 备注 |
 |---|---|---|---|
-| `server/index.ts` | 364 | Fastify 路由、启动、Schema 加载、enum 水合 | 路由清单见 `03_VERBS.md` |
+| `server/index.ts` | 364 | Fastify 路由、启动、Schema 加载、enum 水合 | 路由清单见 `03_VERBS.md`；含 `POST /api/asr`（**全仓唯一非 JSON body**：`application/octet-stream` 原始 WAV，`bodyLimit` 2MiB） |
 | `server/compile.ts` | 229 | Formily Schema → Tool Schema 编译器 + 编译期校验 | 双消费的实现 |
 | `server/agent.ts` | 595 | **核心编排**：意图 → 抽取 → 消解 → 推断 → 缺失判定 | 换模型只影响这里的第 2 步 |
 | `server/llm.ts` | 303 | OpenAI 兼容客户端（火山/DeepSeek/Ollama 通用）+ 连通性诊断 | 含 JSON 模式降级 |
-| `server/settings.ts` | — | 模型配置、`qwen3:0.6b` 预设、`enginePriority` | Key 不进 git |
+| `server/settings.ts` | — | 模型配置、`qwen3:0.6b` 预设、`enginePriority`、**`asrEngine`（默认 `browser`）** | Key 不进 git；字符串枚举走**白名单回落**（写错值自动 browser），`FALSE_WORDS` 只服务布尔项 |
 | `server/resolve.ts` | 415 | 消解器：8 种 resolution 策略 | **确定性代码**，模型不参与；个人用语优先 |
 | `server/speak.ts` | — | **「嘴」TTS 播报**：排队串行 + 失败只降级（不出声也绝不抛错） | 画布与 `npm run say` 共用；**禁用 `-EncodedCommand`**（本机 EPERM），见 `04_DECISIONS` 十四 |
+| `server/asr.ts` | — | **「耳」SenseVoice 离线识别**：single-flight 预热 + 每请求新建 stream + 失败只降级（一律 200，`reason` 枚举） | **必须 `createAsync`/`decodeAsync`**（同步版实测冻死事件循环）；顶层零副作用、**不 import `settings.ts`**（会成环）；日志走 **stderr**（`asr-transcribe.ts` 的 stdout 就是评测结果）；权重加载 **+303MiB 且无释放接口** |
 | `server/lexicon.ts` | — | 个人用语表 CRUD / 匹配 / 提议 | 非向量库 |
 | `server/remaining.ts` | — | 订单行剩余可出货量 | delivery.* 共用 |
 | `server/panels.ts` | 229 | 格子落库、修订准备（查实时状态）、链路查询 | |
@@ -72,9 +73,10 @@
 | `scripts/eval-lexicon.ts` | 用语表夹具：`npm run eval:lexicon` |
 | `scripts/eval-compare-models.ts` | 云端 vs 本地对比：`npm run eval:compare` |
 | `scripts/export-hotwords.ts` | ASR 热词导出：`npm run hotwords` → `models/asr/hotwords.txt` |
-| `scripts/asr-cer.ts` | **CER 评测**：`npm run asr:cer`（标准编辑距离 CER + 完全命中率 + 专有名词命中率 + 分类表）；缺权重/缺 `SHERPA_ASR_CMD` 则写占位报告 |
+| `scripts/asr-cer.ts` | **CER 评测**：`npm run asr:cer`（标准编辑距离 CER + 完全命中率 + 专有名词命中率 + 分类表）；缺权重/缺 `SHERPA_ASR_CMD` 则写占位报告。wav 解析**先查 `eval/asr-wavs-real/<id>.wav` 再回落 `eval/asr-wavs/`** → 真人录音一旦导出，这条命令直接变成真数字 |
 | `scripts/asr-make-wavs.ts` | **造评测音频**：`npm run asr:wavs` → `eval/asr-wavs/<id>.wav`（SAPI 合成，偏乐观；有真人录音时按同 id 覆盖） |
-| `scripts/asr-transcribe.ts` | **sherpa-onnx 转写 CLI**（给 `SHERPA_ASR_CMD` 用）：`npx tsx scripts/asr-transcribe.ts <wav>...`；每个文件输出一行文本 |
+| `scripts/asr-transcribe.ts` | **sherpa-onnx 转写 CLI**（给 `SHERPA_ASR_CMD` 用）：`npx tsx scripts/asr-transcribe.ts <wav>...`；每个文件输出一行文本。**本身不再持有识别代码**，只 `import` `src/server/asr.ts` → 离线评测与服务端跑的是同一份实现 |
+| `scripts/verify-asr-e2e.ts` | **「耳」等价验证**：`npm run verify:asr`（需服务在跑）。A 39 条 wav 逐条 `POST /api/asr` 与报告 hyp **逐字比** · B CER 口径不重算（避免第二份实现）· C 真人语料计数 · D `decodeMs`/RTF 分布。缺权重/缺服务只打印指引并 **exit 0**，不是 CI 硬门 |
 | `scripts/smoke-delivery-remaining.ts` | 部分出货 / 超量硬拦冒烟（断言 + 非 0 退出） |
 | `scripts/smoke-multiline-reserve.ts` | 多行订单 + 标量 qty 硬错 + 预留同步释放：`npm run smoke:multiline` |
 | `scripts/smoke-memory.ts` | **记忆策略冒烟**：候选区 → 跨天升格 → 标准名/噪声过滤，6 项断言：`npm run smoke:memory` |
@@ -87,6 +89,7 @@
 | `eval/utterances.lexicon.jsonl` | 用语夹具样本 |
 | `eval/asr-utterances.jsonl` | ASR CER 参考转写样本（39 条真口吻） |
 | `eval/asr-wavs/` | 评测音频（`npm run asr:wavs` 生成，**gitignore**） |
+| `eval/asr-wavs-real/` | **真人录音语料**（画布「存为语料」→ `PUT /api/asr/corpus/:id` 落原始 WAV 字节；`asr:cer` 优先读这里）。含人的声音，**永不入库** |
 | `eval/results/asr-cer.md` | CER 报告（**不入库**，每次跑重写） |
 | `eval/BASELINE.md` | 准确率基线 |
 | `eval/COMPARE_MODELS.md` | 对比说明（含 Qwen3-0.6B） |
@@ -103,11 +106,12 @@
 
 | 文件 | 行 | 职责 |
 |---|---|---|
-| `ui/App.tsx` | — | 画布主体：顶部上下文、格子列表、底部输入框；**执行结果与追问会调 `say()` 播报** |
+| `ui/App.tsx` | — | 画布主体：顶部上下文、格子列表、底部输入框；**执行结果与追问会调 `say()` 播报**（录音中不播报，自录自播会打架）；麦克风按钮按 `asrEngine` 分派：`startVoiceBrowser()`（**回退锚点，函数体与接线前一字不差**）/ `startVoiceLocal()` → `/api/asr`，**识别失败绝不偷用另一只耳朵** |
 | `ui/ConfirmCard.tsx` | 231 | 待确认格：Formily 渲染 + 推断值高亮 + 三种提交文案 |
 | `ui/PanelCard.tsx` | 131 | 历史格：编号、状态、修订/确认按钮（按实时状态分流） |
 | `ui/ResultView.tsx` | 178 | 结果展示：含 `originNo` / `supersededByNo` / `chainId` |
-| `ui/SettingsModal.tsx` | — | **模型设置面板**：云端 LLM；本地 0.6B 标「可选·暂缓」；**语音播报开关 + 试听** |
+| `ui/SettingsModal.tsx` | — | **模型设置面板**：云端 LLM；本地 0.6B 标「可选·暂缓」；**语音播报开关 + 试听**；**语音输入引擎单选 + 「耳朵自检」（`POST /api/asr/warm`，把权重真起来一次再回报）** |
+| `ui/voiceRecorder.ts` | — | **浏览器侧采音**：`getUserMedia` → `AudioContext({sampleRate:16000})` → ScriptProcessor → 自己封 16-bit PCM WAV。服务端**没有 ffmpeg**，所以必须在浏览器封好；16k 直采还顺带消掉 sherpa 的 resampler 日志刷屏。`encodeWav` 是纯函数（可 devtools 自证）；`stop()/cancel()` 必关 track + ctx，否则麦克风指示灯长亮 |
 | `ui/formily.tsx` | 32 | Formily 与 antd 的桥接 |
 | `ui/widgets.tsx` | 67 | 自定义控件（客户/产品/实体选择器） |
 | `types.ts` | 66 | 前后端共享类型（避免前端拖进 Prisma） |
