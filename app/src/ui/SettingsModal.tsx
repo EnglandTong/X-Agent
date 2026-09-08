@@ -27,6 +27,16 @@ interface SettingsView {
   /** 语音播报开关（「嘴」） */
   ttsEnabled?: boolean
   ttsBackend?: string
+  /** 语音输入引擎（「耳」） */
+  asrEngine?: 'browser' | 'local'
+  asr?: {
+    supported: boolean
+    modelReady: boolean
+    state: 'unloaded' | 'loading' | 'ready' | 'failed'
+    loadMs?: number
+    rssMiB?: number
+    lastError?: string
+  }
   presets: string[]
   localQwen06?: {
     provider: string
@@ -62,6 +72,8 @@ export function SettingsModal({
   const [testing, setTesting] = useState(false)
   const [test, setTest] = useState<TestResult | null>(null)
   const [speaking, setSpeaking] = useState(false)
+  const [checking, setChecking] = useState(false)
+  const [asrCheck, setAsrCheck] = useState<string | null>(null)
   const [base, setBase] = useState<SettingsView | null>(null)
   const provider = Form.useWatch('provider', form)
 
@@ -69,6 +81,7 @@ export function SettingsModal({
     if (!open) return
     setLoading(true)
     setTest(null)
+    setAsrCheck(null)
     fetch('/api/settings')
       .then((r) => r.json())
       .then((s: SettingsView) => {
@@ -80,6 +93,7 @@ export function SettingsModal({
           timeoutMs: s.timeoutMs,
           apiKey: s.apiKey, // 掩码；不修改就原样回传
           ttsEnabled: s.ttsEnabled !== false,
+          asrEngine: s.asrEngine === 'local' ? 'local' : 'browser',
         })
       })
       .finally(() => setLoading(false))
@@ -136,6 +150,30 @@ export function SettingsModal({
       message.error(String(e?.message ?? e))
     } finally {
       setSpeaking(false)
+    }
+  }
+
+  /** 自检：让服务端真的把「耳」起来一次，回报状态；不录音、不依赖前端采集 */
+  async function checkAsr() {
+    setChecking(true)
+    setAsrCheck(null)
+    try {
+      const s = await fetch('/api/asr/warm', { method: 'POST' }).then((x) => x.json())
+      setAsrCheck(
+        !s.supported
+          ? '本平台不支持本地引擎（需 win32-x64）'
+          : !s.modelReady
+            ? '权重未就位，见 app/models/OFFLINE_BUNDLE.md'
+            : s.state === 'ready'
+              ? `已就绪 · 加载 ${s.loadMs ?? 0}ms${s.rssMiB ? ` · 常驻 ${s.rssMiB}MiB` : ''}`
+              : s.state === 'loading'
+                ? '加载中，稍后再试'
+                : `加载失败：${s.lastError ?? '未知原因'}`
+      )
+    } catch (e: any) {
+      setAsrCheck(String(e?.message ?? e))
+    } finally {
+      setChecking(false)
     }
   }
 
@@ -308,6 +346,33 @@ export function SettingsModal({
           <Button size="small" block onClick={trySpeak} loading={speaking}>
             试听一句
           </Button>
+
+          <Form.Item
+            name="asrEngine"
+            label={<span style={{ fontSize: 12, display: 'block', marginTop: 12 }}>语音输入引擎（「耳」）</span>}
+            extra={
+              <span style={{ fontSize: 11 }}>
+                {base?.asr?.modelReady
+                  ? `权重就位 · 加载后服务常驻约 ${base.asr.rssMiB ?? 300}MiB，且不可回收`
+                  : '未检测到权重（228MB 需按 app/models/OFFLINE_BUNDLE.md 下载）'}
+              </span>
+            }
+          >
+            <Radio.Group
+              optionType="button"
+              buttonStyle="solid"
+              options={[
+                { label: '浏览器 Web Speech', value: 'browser' },
+                { label: '本地 SenseVoice', value: 'local' },
+              ]}
+            />
+          </Form.Item>
+          <Button size="small" block onClick={checkAsr} loading={checking}>
+            耳朵自检（加载权重，约 1.5s）
+          </Button>
+          {asrCheck && (
+            <div style={{ fontSize: 11, marginTop: 6, color: '#8c8c8c' }}>{asrCheck}</div>
+          )}
         </Form>
       )}
     </Modal>

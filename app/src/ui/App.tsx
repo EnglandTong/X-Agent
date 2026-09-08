@@ -6,10 +6,12 @@ import {
   SettingOutlined,
   AudioOutlined,
   PlusOutlined,
+  SaveOutlined,
 } from '@ant-design/icons'
 import { ConfirmCard } from './ConfirmCard'
 import { PanelCard } from './PanelCard'
 import { SettingsModal } from './SettingsModal'
+import { startRecording, type RecordHandle, type Recording } from './voiceRecorder'
 import type { Panel, SlotResult, VerbResult } from '../types'
 
 /** 活动格：还没提交的那一格，永远最多一个（且只属于当前工作页） */
@@ -116,6 +118,13 @@ export default function App() {
   const [listening, setListening] = useState(false)
   const [lexProposals, setLexProposals] = useState<LexPropose[]>([])
   const [ttsEnabled, setTtsEnabled] = useState(true)
+  /** 耳朵用哪只：不 import 服务端类型，免得前端反向依赖 server */
+  const [asrEngine, setAsrEngine] = useState<'browser' | 'local'>('browser')
+  const [asrState, setAsrState] = useState('unloaded')
+  /** 刚才那段录音（供「存为语料」用）；null = 没有可存的 */
+  const [lastRecording, setLastRecording] = useState<{ wav: ArrayBuffer; id: string } | null>(null)
+  /** 录音句柄放 ref：它变化不该触发重渲染 */
+  const recorderRef = useRef<RecordHandle | null>(null)
 
   useEffect(() => {
     sessionIdRef.current = sessionId
@@ -135,7 +144,8 @@ export default function App() {
    */
   function say(text?: string | null) {
     const t = (text ?? '').trim()
-    if (!ttsEnabled || !t) return
+    // 正在录音时不开口：会把播报自己录进麦克风（外放时 AEC 压不干净）
+    if (!ttsEnabled || !t || listening) return
     void fetch('/api/speak', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -186,6 +196,8 @@ export default function App() {
       .then((s) => {
         setEngine({ provider: s.provider, model: s.model })
         setTtsEnabled(s.ttsEnabled !== false)
+        setAsrEngine(s.asrEngine === 'local' ? 'local' : 'browser')
+        setAsrState(s.asr?.state ?? 'unloaded')
       })
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -250,7 +262,30 @@ export default function App() {
 
   // ---------------------------------------------------------------- 语音
 
+  /** 服务端 reason 是机器码，这里翻成人话（不然 Owner 只能看到 bad_wav 这种词） */
+  const ASR_REASON: Record<string, string> = {
+    model_missing: '没找到 SenseVoice 权重（见 app/models/OFFLINE_BUNDLE.md），可先切回浏览器引擎',
+    loading: '模型还在加载（约 1 秒），请再说一次',
+    unsupported: '本地引擎目前只在 win32-x64 验过，请切回浏览器引擎',
+    engine_unavailable: '本地引擎起不来，去设置面板点「自检」看原因',
+    too_long: '这句太长了（上限 15 秒）',
+    busy: '上一条还在识别，稍等再说',
+    bad_wav: '没听清（录音没成 WAV）',
+    decode_failed: '识别失败，可切回浏览器引擎',
+  }
+
+  /** 再点一次 = 停下并送识别（本地引擎需要有人收尾取结果） */
   function startVoice() {
+    if (listening) {
+      if (recorderRef.current) void finishVoiceLocal()
+      return // 浏览器引擎自己会 onend，不替它管
+    }
+    if (asrEngine === 'local') void startVoiceLocal()
+    else startVoiceBrowser()
+  }
+
+  /** 浏览器 Web Speech —— 本轮的回退锚点，函数体与接线前一字不差 */
+  function startVoiceBrowser() {
     const SR =
       (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
     if (!SR) {
@@ -276,6 +311,87 @@ export default function App() {
     }
     rec.onend = () => setListening(false)
     rec.start()
+  }
+
+  async function startVoiceLocal() {
+    setListening(true)
+    try {
+      recorderRef.current = await startRecording({
+        maxSeconds: 15,
+        onAutoStop: () => void finishVoiceLocal(), // 撞到上限也要有人收尾
+      })
+    } catch (e: any) {
+      setListening(false)
+      message.error(e?.message ?? '无法开始录音')
+    }
+  }
+
+  /** 停录 → 送识别 → 走同一条 send() */
+  async function finishVoiceLocal() {
+    const handle = recorderRef.current
+    recorderRef.current = null
+    if (!handle) return
+
+    let rec: Recording
+    try {
+      rec = await handle.stop()
+    } catch {
+      setListening(false)
+      message.error('录音没收住')
+      return
+    }
+    setListening(false)
+    if (rec.capped) message.info('已到 15 秒上限，先按这段识别')
+    // 授权弹窗期是静音；不拦就会拿空串去 /api/interpret 换 400，症状是「点了没反应」
+    if (rec.peak < 0.003) {
+      message.warning('没听到声音（查麦克风，或切回浏览器引擎）')
+      return
+    }
+
+    const id = `real-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')}`
+    setLastRecording({ wav: rec.wav, id })
+
+    try {
+      const r = await fetch('/api/asr', {
+        method: 'POST',
+        // 不写这一行 fetch 不会带 Content-Type，Fastify 直接 415
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: rec.wav,
+      })
+      const j = await r.json()
+      if (j.ok && j.text) {
+        setInput(j.text)
+        send(j.text)
+      } else if (j.ok) {
+        message.warning('听到了，但没识别出字')
+      } else {
+        // 绝不偷偷改用浏览器引擎重听一遍：那会让人分不清是哪只耳朵听错的字
+        message.warning(ASR_REASON[j.reason ?? j.skipped ?? ''] ?? j.reason ?? '识别失败')
+      }
+    } catch {
+      message.error('识别请求没送到服务（服务起了吗？）')
+    }
+  }
+
+  /** 把刚才那段真人录音存成语料 —— 只有它才能让 CER 不再是合成语音的数字 */
+  async function saveCorpus() {
+    if (!lastRecording) return
+    try {
+      const r = await fetch(`/api/asr/corpus/${lastRecording.id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: lastRecording.wav,
+      })
+      const j = await r.json()
+      if (r.ok && j.ok) {
+        message.success(`已存为语料 ${j.path}`)
+        setLastRecording(null)
+      } else {
+        message.warning(j.error ?? '没能存下')
+      }
+    } catch {
+      message.error('存语料请求失败')
+    }
   }
 
   // ---------------------------------------------------------------- 发送
@@ -818,8 +934,15 @@ export default function App() {
             loading={listening}
             disabled={busy}
             onClick={startVoice}
-            title="语音输入"
+            title={
+              asrEngine === 'local'
+                ? `语音输入 · 本地 SenseVoice（${asrState}）`
+                : '语音输入 · 浏览器 Web Speech'
+            }
           />
+          {lastRecording && (
+            <Button icon={<SaveOutlined />} onClick={saveCorpus} title="把刚才这段真人录音存成语料（进 npm run asr:cer）" />
+          )}
           <Button type="primary" icon={<SendOutlined />} loading={busy} onClick={() => send(input)} />
         </Space.Compact>
       </div>
@@ -830,6 +953,8 @@ export default function App() {
         onSaved={(s) => {
           setEngine({ provider: s.provider, model: s.model })
           setTtsEnabled(s.ttsEnabled !== false)
+          setAsrEngine(s.asrEngine === 'local' ? 'local' : 'browser')
+          setAsrState(s.asr?.state ?? 'unloaded')
           message.success(
             s.provider === 'openai' ? `已切到模型 ${s.model}` : '已切回规则引擎（离线）'
           )
