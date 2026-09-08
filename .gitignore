@@ -21,6 +21,9 @@ agt-erp-src.zip
 
 # eval run artifacts (keep utterances + failures.jsonl committed)
 app/eval/results/
+# ASR 评测音频（由 npm run asr:wavs 生成，不入库）
+app/eval/asr-wavs/
+*.wav
 
 # large model weights (see app/models/OFFLINE_BUNDLE.md)
 *.onnx

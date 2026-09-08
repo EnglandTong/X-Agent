@@ -147,11 +147,39 @@ copy app\.env.example app\.env
 | tsconfig 报找不到 `@/*` | 缺 baseUrl | 补 `"baseUrl": "."` |
 | 按钮出现「确认确认订单」 | 文案拼接重复 | `ConfirmCard` 用 `submitLabel` 区分三种提交 |
 | `tsx` 报 `ERR_REQUIRE_ASYNC_MODULE` | 脚本不在项目目录（被当 CJS） | 临时脚本放进 `app/` 再跑，跑完删 |
+| `npm run say` 打印「没出声」或抛 `spawn EPERM` | PowerShell **`-EncodedCommand`** 被本机环境拦截 | 已改 `-Command` + 单引号字面量（见 `04_DECISIONS` 十四）；**别改回去** |
+| CER 里型号全错（`A-100` → `a 杠一百`） | SenseVoice 把型号按中文读法念出来 | 待办：ASR 后处理规整 —— **记 backlog，本轮不做** |
 | 推送 GitHub 失败 | **沙箱网络被屏蔽** | 只能本地推（见上） |
 
 ---
 
-## 六、已知的技术债
+## 六、跑 ASR / CER（「听」的自检）
+
+运行时 `sherpa-onnx-node` 已在 `devDependencies`（`npm i` 自带）；**权重不进 Git**，按 `app/models/OFFLINE_BUNDLE.md` 自行下载。
+
+```powershell
+cd app
+npm run hotwords        # 重导热词（客户/产品/仓库/动词词）
+npm run asr:wavs        # 造评测音频 → eval/asr-wavs/（不入库）
+$env:SHERPA_ASR_CMD = 'npx tsx scripts/asr-transcribe.ts'
+npm run asr:cer         # 出 eval/results/asr-cer.md
+```
+
+| 指标 | 2026-09-08 基线（39 条） |
+|---|---|
+| 平均 CER | **34.02%** |
+| 完全命中 | 10/39 |
+| 专有名词命中率 | 27/55 = **49.1%** |
+| 最弱分类 | `qty` 62.2%（型号 + 数量连读） |
+
+> 音频是 **SAPI 合成**的：发音标准、无噪声 → 数字**偏乐观**。
+> 真人口音：另录真人 wav，按同 id 覆盖 `eval/asr-wavs/` 再跑即可。
+> SenseVoice **不支持 hotwords**（只有 transducer + modified_beam_search 支持），
+> 所以专有名词只能靠**识别后的文本规整**救，不能靠热词表。
+
+---
+
+## 七、已知的技术债
 
 | 债 | 影响 | 建议时机 |
 |---|---|---|

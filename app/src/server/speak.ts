@@ -41,8 +41,13 @@ export function isTtsSupported(): boolean {
  *
  * 另外显式挑 zh-* 语音：默认语音可能是 en-US，中文会被念成奇怪的音。
  */
+/** PowerShell 单引号字面量：串里只有 ' 需要写成 '' */
+function psLiteral(s: string): string {
+  return `'${s.replace(/'/g, "''")}'`
+}
+
 function buildArgs(text: string): string[] {
-  const literal = `'${text.replace(/'/g, "''")}'`
+  const literal = psLiteral(text)
   const script = [
     'Add-Type -AssemblyName System.Speech',
     '$s = New-Object System.Speech.Synthesis.SpeechSynthesizer',
@@ -113,4 +118,36 @@ export function speak(text: string): Promise<SpeakResult> {
   // 队列只用来串行，失败不污染后续任务
   queue = task.catch(() => {})
   return task
+}
+
+/**
+ * 合成到 wav —— 不发声，只落文件。
+ *
+ * 用途：给 ASR 评测造音频（`npm run asr:wavs`）。没有真人录音之前，
+ * 用系统自己的嘴念一遍，至少能验证「模型装好了没 / 中文能不能识别」。
+ * 注意这是**合成语音**，CER 会偏乐观，不能当真实口音结论。
+ */
+export function synthesizeWav(text: string, outPath: string): Promise<boolean> {
+  const clean = (text ?? '').replace(/\s+/g, ' ').trim()
+  if (!clean || !isTtsSupported()) return Promise.resolve(false)
+
+  const script = [
+    'Add-Type -AssemblyName System.Speech',
+    '$s = New-Object System.Speech.Synthesis.SpeechSynthesizer',
+    '$v = $s.GetInstalledVoices() | Where-Object { $_.VoiceInfo.Culture -like "zh-*" } | Select-Object -First 1',
+    'if ($v) { $s.SelectVoice($v.VoiceInfo.Name) }',
+    '$s.Volume = 100',
+    `$s.SetOutputToWaveFile(${psLiteral(outPath)})`,
+    `$s.Speak(${psLiteral(clean)})`,
+    '$s.Dispose()',
+  ].join('; ')
+
+  return new Promise((resolve) => {
+    const child = spawn('powershell.exe', ['-NoProfile', '-Command', script], {
+      stdio: 'ignore',
+      windowsHide: true,
+    })
+    child.on('error', () => resolve(false))
+    child.on('close', (code) => resolve(code === 0))
+  })
 }

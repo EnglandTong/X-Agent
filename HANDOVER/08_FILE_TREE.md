@@ -72,7 +72,9 @@
 | `scripts/eval-lexicon.ts` | 用语表夹具：`npm run eval:lexicon` |
 | `scripts/eval-compare-models.ts` | 云端 vs 本地对比：`npm run eval:compare` |
 | `scripts/export-hotwords.ts` | ASR 热词导出：`npm run hotwords` → `models/asr/hotwords.txt` |
-| `scripts/asr-cer.ts` | SenseVoice CER 脚手架：`npm run asr:cer`（缺权重则跳过真实推理） |
+| `scripts/asr-cer.ts` | **CER 评测**：`npm run asr:cer`（标准编辑距离 CER + 完全命中率 + 专有名词命中率 + 分类表）；缺权重/缺 `SHERPA_ASR_CMD` 则写占位报告 |
+| `scripts/asr-make-wavs.ts` | **造评测音频**：`npm run asr:wavs` → `eval/asr-wavs/<id>.wav`（SAPI 合成，偏乐观；有真人录音时按同 id 覆盖） |
+| `scripts/asr-transcribe.ts` | **sherpa-onnx 转写 CLI**（给 `SHERPA_ASR_CMD` 用）：`npx tsx scripts/asr-transcribe.ts <wav>...`；每个文件输出一行文本 |
 | `scripts/smoke-delivery-remaining.ts` | 部分出货 / 超量硬拦冒烟（断言 + 非 0 退出） |
 | `scripts/smoke-multiline-reserve.ts` | 多行订单 + 标量 qty 硬错 + 预留同步释放：`npm run smoke:multiline` |
 | `scripts/smoke-memory.ts` | **记忆策略冒烟**：候选区 → 跨天升格 → 标准名/噪声过滤，6 项断言：`npm run smoke:memory` |
@@ -83,7 +85,9 @@
 | `scripts/eval-asr-utterances.ts` | **真口吻动词准确率**：`npm run eval:asr`（`BASE_URL=:3002` 跑规则档）。持续暴露「评测集口径 96% vs 真口吻 78%」的差距；T4 改消解后必须重跑 |
 | `eval/utterances.jsonl` | 主评测样本 |
 | `eval/utterances.lexicon.jsonl` | 用语夹具样本 |
-| `eval/asr-utterances.jsonl` | ASR CER 参考转写样本 |
+| `eval/asr-utterances.jsonl` | ASR CER 参考转写样本（39 条真口吻） |
+| `eval/asr-wavs/` | 评测音频（`npm run asr:wavs` 生成，**gitignore**） |
+| `eval/results/asr-cer.md` | CER 报告（**不入库**，每次跑重写） |
 | `eval/BASELINE.md` | 准确率基线 |
 | `eval/COMPARE_MODELS.md` | 对比说明（含 Qwen3-0.6B） |
 | `eval/failures.jsonl` | 错例 |

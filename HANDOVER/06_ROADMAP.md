@@ -103,7 +103,10 @@
 ```bash
 cd app
 npm run hotwords
-npm run asr:cer   # 需 SenseVoice 权重 + SHERPA_ASR_CMD
+npm run asr:wavs  # 造评测音频（无真人录音时用 SAPI 合成）
+# 运行时已入 devDependencies（sherpa-onnx-node），只需指定转写命令：
+set SHERPA_ASR_CMD=npx tsx scripts/asr-transcribe.ts
+npm run asr:cer   # 出 eval/results/asr-cer.md（基线：CER 34.02% · 专有名词 49.1%）
 # 大脑继续用云端 Key；勿为本机强拉 ollama 0.6B
 ```
 
