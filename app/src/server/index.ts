@@ -9,14 +9,16 @@
  *   GET  /api/tools              拿编译后的 Tool Schema（给模型当工具定义）
  *   POST /api/interpret          一句话 → 意图 + 槽位（Agent 层）
  *   POST /api/verbs/:name/run    执行动词（领域层）
+ *   POST /api/asr                一段 16k WAV 原始字节 → 文本（「耳」，本地 SenseVoice）
+ *   GET  /api/asr/status         耳朵状态（是否支持 / 权重在不在 / 模型加载态）
  *   GET  /api/entities/:kind     实体选项（供表单下拉框异步加载）
  */
 
 import Fastify from 'fastify'
 import fastifyStatic from '@fastify/static'
 import { PrismaClient } from '@prisma/client'
-import { readFileSync, existsSync, readdirSync } from 'node:fs'
-import { join, dirname } from 'node:path'
+import { readFileSync, existsSync, readdirSync, mkdirSync, writeFileSync } from 'node:fs'
+import { join, dirname, resolve, relative, sep } from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { compile, loadVerbs } from './compile'
@@ -25,6 +27,7 @@ import { interpret, hydrateInference, applyListPriceFallback } from './agent'
 import { ping } from './llm'
 import { loadSettings, saveSettings, publicView, type LlmSettings } from './settings'
 import { speak, isTtsSupported } from './speak'
+import { transcribeFromWav, asrStatus, warmAsr, isAsrSupported } from './asr'
 import {
   recordPanel,
   listPanels,
@@ -108,7 +111,24 @@ for (const [name, tool] of tools) {
 
 // ---------------------------------------------------------------- Fastify
 
-const app = Fastify({ logger: false })
+/**
+ * bodyLimit 2MiB —— 给「耳」的一段 16k WAV 腾位置（32,000 B/s ⇒ 2MiB ≈ 65s）。
+ * Fastify v5 **没有 per-route bodyLimit**，只能全局抬；域内的 15s 上限在
+ * `asr.ts` 里判，这样超长回的是可读的 `too_long`，而不是裸 413。
+ */
+const app = Fastify({ logger: false, bodyLimit: 2_097_152 })
+
+/**
+ * 全仓第一个非 JSON body：`/api/asr` 收原始 WAV 字节。
+ * 选二进制而不是 base64-JSON：省 33% 字节、免两端编解码，而且
+ * `curl --data-binary @x.wav -H 'Content-Type: application/octet-stream'` 能直接手工验证。
+ * 走 multipart 才需要新插件 —— 这里不需要。
+ */
+app.addContentTypeParser(
+  'application/octet-stream',
+  { parseAs: 'buffer' },
+  (_req, body, done) => done(null, body)
+)
 
 app.get('/api/health', async () => ({
   ok: true,
@@ -121,8 +141,15 @@ app.get('/api/health', async () => ({
 
 // ---------------------------------------------------------------- 模型设置
 
+/**
+ * 设置视图 = 掩码配置 + 耳朵状态。
+ * `asr` 在这里组合、而不是塞进 `publicView`：方向只能是 index.ts → { settings, asr }，
+ * `asr.ts` 反向 import `settings.ts` 会成环。
+ */
+const settingsView = () => ({ ...publicView(runtime.settings), asr: asrStatus() })
+
 /** 读当前配置（key 以掩码返回） */
-app.get('/api/settings', async () => publicView(runtime.settings))
+app.get('/api/settings', async () => settingsView())
 
 /** 保存配置 —— 立即生效，写入 .env.local，不进 git */
 app.put<{ Body: Partial<LlmSettings> }>('/api/settings', async (req, reply) => {
@@ -139,6 +166,8 @@ app.put<{ Body: Partial<LlmSettings> }>('/api/settings', async (req, reply) => {
     timeoutMs: Number(b.timeoutMs) > 0 ? Number(b.timeoutMs) : cur.timeoutMs,
     // 语音播报开关（「嘴」）；不传表示不改
     ttsEnabled: typeof b.ttsEnabled === 'boolean' ? b.ttsEnabled : cur.ttsEnabled,
+    // 语音识别引擎（「耳」）；白名单回落，别写成 `b.asrEngine ?? cur` —— 空串会漏进来
+    asrEngine: b.asrEngine === 'local' || b.asrEngine === 'browser' ? b.asrEngine : cur.asrEngine,
   }
 
   if (next.provider === 'openai' && !next.apiKey) {
@@ -146,7 +175,9 @@ app.put<{ Body: Partial<LlmSettings> }>('/api/settings', async (req, reply) => {
   }
 
   runtime.settings = saveSettings(next)
-  return { ok: true, ...publicView(runtime.settings) }
+  // 刚从浏览器切到本地 → 后台预热。绝不 await：加载要 1.1s，不能拖住这次保存
+  if (next.asrEngine === 'local' && cur.asrEngine !== 'local') void warmAsr()
+  return { ok: true, ...settingsView() }
 })
 
 /** 连通性测试 —— 真发一条最小请求，把服务端原始错误带回来（排查 401 用） */
@@ -169,6 +200,88 @@ app.post<{ Body: { text?: string } }>('/api/speak', async (req, reply) => {
   const r = await speak(text)
   return { ...r, skipped: r.ok ? undefined : r.reason, supported: isTtsSupported() }
 })
+
+// ---------------------------------------------------------------- 「耳」· 语音识别
+
+/**
+ * POST /api/asr —— 一段 16k 单声道 WAV 的**原始字节** → 文本。
+ *
+ * 只有「语音引擎 = 本地」时画布才打这里；引擎是浏览器时直接回 skipped，模型根本不加载。
+ * 降级纪律与「嘴」一致（speak.ts:9）：能力缺失 / 权重没装 / 还在加载 一律 200 + ok:false，
+ * 绝不冒泡成 5xx —— 耳朵缺位不能影响业务。
+ */
+app.post('/api/asr', async (req, reply) => {
+  const body = req.body as unknown
+  if (!(body instanceof Uint8Array) || body.byteLength === 0) {
+    return reply
+      .code(400)
+      .send({ error: 'body 必须是 WAV 原始字节（Content-Type: application/octet-stream）' })
+  }
+  if (runtime.settings.asrEngine !== 'local') {
+    return {
+      ok: false,
+      text: '',
+      skipped: 'disabled',
+      reason: '语音识别当前用浏览器引擎（设置面板可切本地）',
+      supported: isAsrSupported(),
+    }
+  }
+  const r = await transcribeFromWav(body)
+  return { ...r, skipped: r.ok ? undefined : r.reason, supported: isAsrSupported() }
+})
+
+/** GET /api/asr/status —— 只读：平台支持吗 / 权重在吗 / 加载到哪一步 */
+app.get('/api/asr/status', async () => asrStatus())
+
+/**
+ * POST /api/asr/warm —— 预热或重试加载（failed 只有这条路能再来一次）。
+ * 存在的意义：装完 228MB 权重后不必重启服务，设置面板点一下即可。
+ */
+app.post('/api/asr/warm', async () => warmAsr())
+
+/** 真人语料目录：画布「存为语料」的落点，gitignore 掉（含人声，不该入库） */
+const CORPUS_DIR = join(ROOT, 'eval', 'asr-wavs-real')
+/** id 白名单：本身就排除了 `/`、`\`、`..` 与任何分隔符 */
+const CORPUS_ID = /^[A-Za-z0-9_-]{1,40}$/
+
+/**
+ * PUT /api/asr/corpus/:id —— 存一段真人录音，补上「34% 来自 SAPI 合成语音、
+ * 真人从没测过」这个缺口。落盘后同一段字节能在浏览器外被 `curl --data-binary`
+ * 复现，并被 `npm run asr:cer` 自动优先采用（同名覆盖合成音频）。
+ *
+ * 服务默认听 0.0.0.0，这是个局域网可达的**写入**端点，所以校验逐条来：
+ *   1. id 严格白名单正则 2. resolve 后断言仍在基目录内（纵深防御）
+ *   3. 基目录硬编码，不接受前端传路径 4. 只认 RIFF 头 5. 默认拒覆盖，要 ?overwrite=1
+ */
+app.put<{ Params: { id: string }; Querystring: { overwrite?: string } }>(
+  '/api/asr/corpus/:id',
+  async (req, reply) => {
+    const { id } = req.params
+    if (!CORPUS_ID.test(id)) {
+      return reply.code(400).send({ error: 'id 只允许字母、数字、_、-，最长 40 字符' })
+    }
+    const body = req.body as unknown
+    if (!(body instanceof Uint8Array) || body.byteLength < 44) {
+      return reply.code(400).send({ error: 'body 必须是一段 WAV 原始字节' })
+    }
+    if (body[0] !== 0x52 || body[1] !== 0x49 || body[2] !== 0x46 || body[3] !== 0x46) {
+      return reply.code(400).send({ error: '只收 WAV（前 4 字节必须是 RIFF）' })
+    }
+
+    const base = resolve(CORPUS_DIR)
+    const target = resolve(base, `${id}.wav`)
+    if (!target.startsWith(base + sep)) {
+      return reply.code(400).send({ error: '路径越界' })
+    }
+    if (existsSync(target) && req.query.overwrite !== '1') {
+      return reply.code(409).send({ error: `${id}.wav 已存在（要覆盖请带 ?overwrite=1）` })
+    }
+
+    mkdirSync(base, { recursive: true })
+    writeFileSync(target, body)
+    return { ok: true, id, bytes: body.byteLength, path: relative(ROOT, target) }
+  }
+)
 
 // ---------------------------------------------------------------- 个人用语表
 
@@ -506,6 +619,9 @@ try {
   await app.listen({ port: PORT, host: HOST })
   console.log(`\n🚀 AGT-ERP 服务已启动：http://localhost:${PORT}`)
   console.log(`   动词 ${tools.size} 个 · Agent：${runtime.settings.provider}\n`)
+  // 耳朵预热放在端口之后：模型加载实测 1.1s / +303MiB，挡在关键路径上等于整站晚 1 秒。
+  // 引擎=browser 时根本不碰模型（零内存）—— 这就是默认的零感知回退位。
+  if (runtime.settings.asrEngine === 'local') void warmAsr().catch(() => {})
 } catch (err) {
   console.error('启动失败：', err)
   process.exit(1)
