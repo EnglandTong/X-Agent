@@ -29,6 +29,8 @@ export interface LlmSettings {
   model: string
   /** 超时（毫秒）—— 手机网络下别设太短 */
   timeoutMs: number
+  /** 语音播报（「嘴」，Windows SAPI）—— 不属于 LLM，但共用同一个 .env.local 与设置面板 */
+  ttsEnabled: boolean
 }
 
 export const DEFAULT_SETTINGS: LlmSettings = {
@@ -38,6 +40,8 @@ export const DEFAULT_SETTINGS: LlmSettings = {
   apiKey: '',
   model: 'doubao-seed-2.0-mini',
   timeoutMs: 20000,
+  /** 默认开：接进画布就是为了让它主动说话（可在设置面板一键关） */
+  ttsEnabled: true,
 }
 
 /** 快捷模型名（云端 + 本地断网目标） */
@@ -103,7 +107,11 @@ const KEY_MAP: Record<keyof LlmSettings, string> = {
   apiKey: 'LLM_API_KEY',
   model: 'LLM_MODEL',
   timeoutMs: 'LLM_TIMEOUT_MS',
+  ttsEnabled: 'TTS_ENABLED',
 }
+
+/** TTS_ENABLED 的假值写法（大小写不敏感）；空 = 用默认值（开） */
+const FALSE_WORDS = new Set(['0', 'false', 'off', 'no'])
 
 export function loadSettings(): LlmSettings {
   const file = readEnvLocal()
@@ -118,6 +126,7 @@ export function loadSettings(): LlmSettings {
     apiKey: get(KEY_MAP.apiKey) || '',
     model: get(KEY_MAP.model) || DEFAULT_SETTINGS.model,
     timeoutMs: Number.isFinite(timeout) && timeout > 0 ? timeout : DEFAULT_SETTINGS.timeoutMs,
+    ttsEnabled: !FALSE_WORDS.has((get(KEY_MAP.ttsEnabled) ?? '').trim().toLowerCase()),
   }
 }
 
@@ -129,6 +138,7 @@ export function saveSettings(next: LlmSettings): LlmSettings {
   file[KEY_MAP.apiKey] = next.apiKey
   file[KEY_MAP.model] = next.model
   file[KEY_MAP.timeoutMs] = String(next.timeoutMs)
+  file[KEY_MAP.ttsEnabled] = next.ttsEnabled ? '1' : '0'
 
   const body = Object.entries(file)
     .map(([k, v]) => `${k}=${/\s|#|"/.test(v) ? JSON.stringify(v) : v}`)
@@ -141,6 +151,7 @@ export function saveSettings(next: LlmSettings): LlmSettings {
   process.env[KEY_MAP.apiKey] = next.apiKey
   process.env[KEY_MAP.model] = next.model
   process.env[KEY_MAP.timeoutMs] = String(next.timeoutMs)
+  process.env[KEY_MAP.ttsEnabled] = next.ttsEnabled ? '1' : '0'
 
   return loadSettings()
 }
@@ -162,6 +173,8 @@ export function publicView(s: LlmSettings) {
     timeoutMs: s.timeoutMs,
     apiKey: maskKey(s.apiKey),
     hasKey: !!s.apiKey,
+    ttsEnabled: s.ttsEnabled,
+    ttsBackend: 'Windows SAPI（服务进程本机出声，0MB）',
     presets: MODEL_PRESETS,
     localQwen06: LOCAL_QWEN06_PRESET,
     enginePriority: 'cloud_llm > rules（ASR 本地化；本地 LLM 暂缓）',

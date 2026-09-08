@@ -11,7 +11,9 @@ import {
   Alert,
   Tag,
   Spin,
+  Switch,
   Typography,
+  message,
 } from 'antd'
 import { CheckCircleOutlined, CloseCircleOutlined } from '@ant-design/icons'
 
@@ -22,6 +24,9 @@ interface SettingsView {
   timeoutMs: number
   apiKey: string
   hasKey: boolean
+  /** 语音播报开关（「嘴」） */
+  ttsEnabled?: boolean
+  ttsBackend?: string
   presets: string[]
   localQwen06?: {
     provider: string
@@ -56,6 +61,7 @@ export function SettingsModal({
   const [saving, setSaving] = useState(false)
   const [testing, setTesting] = useState(false)
   const [test, setTest] = useState<TestResult | null>(null)
+  const [speaking, setSpeaking] = useState(false)
   const [base, setBase] = useState<SettingsView | null>(null)
   const provider = Form.useWatch('provider', form)
 
@@ -73,6 +79,7 @@ export function SettingsModal({
           model: s.model,
           timeoutMs: s.timeoutMs,
           apiKey: s.apiKey, // 掩码；不修改就原样回传
+          ttsEnabled: s.ttsEnabled !== false,
         })
       })
       .finally(() => setLoading(false))
@@ -111,6 +118,24 @@ export function SettingsModal({
       setTest({ ok: false, ms: 0, model: '', baseUrl: '', error: String(e?.message ?? e) })
     } finally {
       setTesting(false)
+    }
+  }
+
+  /** 试听：念一句固定文本，确认「嘴」真的接上了 */
+  async function trySpeak() {
+    setSpeaking(true)
+    try {
+      const r = await fetch('/api/speak', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: '语音播报已开启，这是 A G T 一 E R P' }),
+      }).then((x) => x.json())
+      if (r.ok) message.success('已播报')
+      else message.warning(r.reason ?? '没有出声')
+    } catch (e: any) {
+      message.error(String(e?.message ?? e))
+    } finally {
+      setSpeaking(false)
     }
   }
 
@@ -267,6 +292,22 @@ export function SettingsModal({
               </Tag>
             </>
           )}
+
+          <Form.Item
+            name="ttsEnabled"
+            label={<span style={{ fontSize: 12 }}>语音播报（SAPI · 本机出声）</span>}
+            valuePropName="checked"
+            extra={
+              <span style={{ fontSize: 11 }}>
+                {base?.ttsBackend ?? 'Windows SAPI'} · 执行结果与追问都会念出来
+              </span>
+            }
+          >
+            <Switch size="small" />
+          </Form.Item>
+          <Button size="small" block onClick={trySpeak} loading={speaking}>
+            试听一句
+          </Button>
         </Form>
       )}
     </Modal>

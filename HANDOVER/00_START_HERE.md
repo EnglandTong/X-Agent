@@ -4,8 +4,8 @@
 > 你就能接着往下做。Owner 会在新会话里对你说「去仓库把档案取出来读」，读的就是这里。
 
 **项目代号**：AGT-ERP · Agent 驱动的 ERP（PoC）
-**档案版本**：v1.4 · 2026-09-08（13 动词 · T1–T5 全清 · 记忆网络 v1 · G1/G2 关闭）
-**代码状态**：**13 动词**（含 `lexicon.remember`）；云端 LLM 已通（模型 100%/100%）；**T1–T5 派工单全部完成**；SenseVoice int8 权重已就位（228MB，CER 待实跑）；TTS（SAPI）可用；记忆网络 v1 已落地（候选区 + 跨天升格）；**G1/G2 已关闭，G3 已缓解**。⚠️ **3 个 commit 待推送**（GitHub 间歇性抽风，本地安全）
+**档案版本**：v1.5 · 2026-09-08（13 动词 · T1–T5 全清 · 记忆网络 v1 · **TTS 已接进画布** · 提交已推送）
+**代码状态**：**13 动词**（含 `lexicon.remember`）；云端 LLM 已通（模型 100%/100%）；**T1–T5 派工单全部完成**；SenseVoice int8 权重已就位（228MB，CER 待实跑）；**TTS 已接进画布**（说+听闭环）；记忆网络 v1 已落地（候选区 + 跨天升格）；**G1/G2 已关闭，G3 已缓解**。✅ **提交已全部上远端**（`dda6a0c..7daba7a`）
 
 ### 事实源优先级（避免多份互相打架）
 
@@ -42,9 +42,9 @@
 | 数据库 | ✅ SQLite | 含 Delivery / Inventory.reserved / **LexemeEvidence（记忆证据，#28）** |
 | 派工单 T0–T6 | ✅ **全部完成** | T1 真跑 9/10 · T2 权重 228MB · T3 评测集 39 条 · T4 消解收紧 · T5 抽 `core/` |
 | 记忆 | ✅ **v1 已落地** | 候选区 `candidate`（不参与消解）→ 跨 ≥2 天 → 升格 active；标准名/噪声自动过滤 |
-| TTS | ✅ `npm run say` | Windows SAPI，0MB；感官盘点：**文字 ✅ · 听 🟡（权重就位）· 说 ✅** |
+| TTS | ✅ **已接进画布** | `POST /api/speak` + 设置面板开关 + 试听；`npm run say` 仍可用。感官盘点：**文字 ✅ · 听 🟡（CER 待跑）· 说 ✅（画布会主动念结果）** |
 | 源码版本 | ✅ GitHub `main` | `EnglandTong/Agent_ERP` |
-| **同步状态** | ⚠️ **3 commit 待推送** | `a61fc7d`(TTS) `15cef5d`(D10) `3ab1f50`(D11) —— GitHub 间歇性抽风，**本地安全**，恢复后 `git push origin main` |
+| **同步状态** | ✅ **已同步** | 2026-09-08 推送 `dda6a0c..7daba7a`（4 个提交）到 `origin/main` |
 | 密钥文件 | ✅ Key 在 `.env.local` | 设置面板已填；不进 Git |
 | 评测 | ✅ 四件套 | `eval`(53 条) / `eval:asr`(39 条真口吻) / `eval:lexicon` / `eval:compare`；基线：云端 97.4% / 规则 78.9%（真口吻） |
 | 已验证项 | ✅ 见 `05_TEST_LOG.md` | 32 项，含 T1 十条真口吻、两档基线、记忆冒烟 |
@@ -68,9 +68,10 @@
 
 | P | 事项 | 验收标准 |
 |---|---|---|
-| **P0** | **推送积压的 3 个 commit**：`git push origin main`（GitHub 间歇性抽风，重试即可） | `git log --oneline origin/main -1` = 本地 HEAD |
+| **P0** | ~~推送积压的 commit~~ ✅ **已完成**（2026-09-08） | `git log --oneline origin/main -1` = `7daba7a` |
+| **P1** | Owner 体感验证：画布执行一个只读动词 → **应听到结果播报**；设置面板可一键关 | 出声；关掉后再执行不再出声 |
 | **P1** | Owner 体感验证：画布说「记住：老张就是张三」→ 点确认 → **明天再说一次** → 看升格提示 | `PersonalLexeme` 里 `老张` 从 `candidate` 变 `active` |
-| **P1** | 下一波开发候选（Owner 选）：**A** TTS 接入画布（说 + 听闭环）· **B** sherpa-onnx 运行时 + CER 实测 · **C** TTS/OCR 等 `modality` 扩展按 #27 协议走 | 每项独立验收，见 `12_HANDOFF` 下一步计划 |
+| **P1** | 下一波开发候选（Owner 选）：**B** sherpa-onnx 运行时 + CER 实测 · **C** 记忆 v2 · **D** 本地 0.6B 对比 · **E** UI 收尾 | 每项独立验收，见 `12_HANDOFF` 下一步计划（**A 已完成**） |
 | **P2** | 阶段备份：push + 重打网盘包 | 见 `07_OPS.md` |
 
 ---

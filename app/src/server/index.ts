@@ -24,6 +24,7 @@ import { getVerb, listVerbs } from './verbs/registry'
 import { interpret, hydrateInference, applyListPriceFallback } from './agent'
 import { ping } from './llm'
 import { loadSettings, saveSettings, publicView, type LlmSettings } from './settings'
+import { speak, isTtsSupported } from './speak'
 import {
   recordPanel,
   listPanels,
@@ -136,6 +137,8 @@ app.put<{ Body: Partial<LlmSettings> }>('/api/settings', async (req, reply) => {
     apiKey: keyUnchanged ? cur.apiKey : (b.apiKey ?? '').trim(),
     model: (b.model ?? cur.model).trim(),
     timeoutMs: Number(b.timeoutMs) > 0 ? Number(b.timeoutMs) : cur.timeoutMs,
+    // 语音播报开关（「嘴」）；不传表示不改
+    ttsEnabled: typeof b.ttsEnabled === 'boolean' ? b.ttsEnabled : cur.ttsEnabled,
   }
 
   if (next.provider === 'openai' && !next.apiKey) {
@@ -148,6 +151,24 @@ app.put<{ Body: Partial<LlmSettings> }>('/api/settings', async (req, reply) => {
 
 /** 连通性测试 —— 真发一条最小请求，把服务端原始错误带回来（排查 401 用） */
 app.post('/api/settings/test', async () => ping(runtime.settings))
+
+// ---------------------------------------------------------------- 「嘴」· 语音播报
+
+/**
+ * POST /api/speak { text }
+ *
+ * 画布在执行完动词、或还有字段没问到时调用它 —— 让系统第一次主动开口。
+ * 播报失败只降级（服务端打印文本），绝不冒泡成错误：嘴缺位不能影响业务。
+ */
+app.post<{ Body: { text?: string } }>('/api/speak', async (req, reply) => {
+  const text = (req.body?.text ?? '').trim()
+  if (!text) return reply.code(400).send({ error: 'text 不能为空' })
+  if (!runtime.settings.ttsEnabled) {
+    return { ok: false, skipped: 'disabled', reason: '语音播报已关闭（设置面板可开）' }
+  }
+  const r = await speak(text)
+  return { ...r, skipped: r.ok ? undefined : r.reason, supported: isTtsSupported() }
+})
 
 // ---------------------------------------------------------------- 个人用语表
 

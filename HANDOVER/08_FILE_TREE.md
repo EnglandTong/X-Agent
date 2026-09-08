@@ -47,6 +47,7 @@
 | `server/llm.ts` | 303 | OpenAI 兼容客户端（火山/DeepSeek/Ollama 通用）+ 连通性诊断 | 含 JSON 模式降级 |
 | `server/settings.ts` | — | 模型配置、`qwen3:0.6b` 预设、`enginePriority` | Key 不进 git |
 | `server/resolve.ts` | 415 | 消解器：8 种 resolution 策略 | **确定性代码**，模型不参与；个人用语优先 |
+| `server/speak.ts` | — | **「嘴」TTS 播报**：排队串行 + 失败只降级（不出声也绝不抛错） | 画布与 `npm run say` 共用；**禁用 `-EncodedCommand`**（本机 EPERM），见 `04_DECISIONS` 十四 |
 | `server/lexicon.ts` | — | 个人用语表 CRUD / 匹配 / 提议 | 非向量库 |
 | `server/remaining.ts` | — | 订单行剩余可出货量 | delivery.* 共用 |
 | `server/panels.ts` | 229 | 格子落库、修订准备（查实时状态）、链路查询 | |
@@ -75,7 +76,7 @@
 | `scripts/smoke-delivery-remaining.ts` | 部分出货 / 超量硬拦冒烟（断言 + 非 0 退出） |
 | `scripts/smoke-multiline-reserve.ts` | 多行订单 + 标量 qty 硬错 + 预留同步释放：`npm run smoke:multiline` |
 | `scripts/smoke-memory.ts` | **记忆策略冒烟**：候选区 → 跨天升格 → 标准名/噪声过滤，6 项断言：`npm run smoke:memory` |
-| `scripts/speak.ts` | **TTS（Windows SAPI，0MB）**：`npm run say -- 的话`；base64 传参避开引号/编码坑；SAPI 不可用则降级打印 |
+| `scripts/speak.ts` | **TTS CLI**：`npm run say -- 的话`；实现在 `src/server/speak.ts`（画布与 CLI 共用一套，避免两份逻辑漂移） |
 | `scripts/smoke-verbs.ts` | 12 动词冒烟 |
 | `scripts/trial-10-utterances.ts` | API 真链路 10 条：`npm run trial:10` |
 | `scripts/trial-owner-10.ts` | **T1 派工单 10 条真口吻**：`npm run trial:owner10`（`BASE_URL` 换端口 / `SESSION_ID` 换画布 / `RESET_PANELS=1` 才清画布；单条失败不中断，跑完出 DB 计数） |
@@ -98,11 +99,11 @@
 
 | 文件 | 行 | 职责 |
 |---|---|---|
-| `ui/App.tsx` | 431 | 画布主体：顶部上下文、格子列表、底部输入框 |
+| `ui/App.tsx` | — | 画布主体：顶部上下文、格子列表、底部输入框；**执行结果与追问会调 `say()` 播报** |
 | `ui/ConfirmCard.tsx` | 231 | 待确认格：Formily 渲染 + 推断值高亮 + 三种提交文案 |
 | `ui/PanelCard.tsx` | 131 | 历史格：编号、状态、修订/确认按钮（按实时状态分流） |
 | `ui/ResultView.tsx` | 178 | 结果展示：含 `originNo` / `supersededByNo` / `chainId` |
-| `ui/SettingsModal.tsx` | — | **模型设置面板**：云端 LLM；本地 0.6B 标「可选·暂缓」 |
+| `ui/SettingsModal.tsx` | — | **模型设置面板**：云端 LLM；本地 0.6B 标「可选·暂缓」；**语音播报开关 + 试听** |
 | `ui/formily.tsx` | 32 | Formily 与 antd 的桥接 |
 | `ui/widgets.tsx` | 67 | 自定义控件（客户/产品/实体选择器） |
 | `types.ts` | 66 | 前后端共享类型（避免前端拖进 Prisma） |

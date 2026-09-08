@@ -115,6 +115,7 @@ export default function App() {
   const panelsRef = useRef(panels)
   const [listening, setListening] = useState(false)
   const [lexProposals, setLexProposals] = useState<LexPropose[]>([])
+  const [ttsEnabled, setTtsEnabled] = useState(true)
 
   useEffect(() => {
     sessionIdRef.current = sessionId
@@ -127,6 +128,20 @@ export default function App() {
     setTimeout(() => {
       canvasRef.current?.scrollTo({ top: canvasRef.current.scrollHeight, behavior: 'smooth' })
     }, 80)
+
+  /**
+   * 让系统开口（「嘴」→ /api/speak）。火后即忘：
+   * 播报要几秒、还可能没有声卡 —— 这些都不能拖住画布。
+   */
+  function say(text?: string | null) {
+    const t = (text ?? '').trim()
+    if (!ttsEnabled || !t) return
+    void fetch('/api/speak', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ text: t.slice(0, 300) }),
+    }).catch(() => {})
+  }
 
   /** 离开当前页之前：把本页登记进 Tab 列表（即使还没重新拉 API） */
   function parkCurrentSession(override?: { sessionId: string; panels: Panel[] }) {
@@ -168,7 +183,10 @@ export default function App() {
     reload('default')
     fetch('/api/settings')
       .then((r) => r.json())
-      .then((s) => setEngine({ provider: s.provider, model: s.model }))
+      .then((s) => {
+        setEngine({ provider: s.provider, model: s.model })
+        setTtsEnabled(s.ttsEnabled !== false)
+      })
       .catch(() => {})
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -301,6 +319,8 @@ export default function App() {
         engine: interp.engine,
         llm: interp.llm,
       })
+      // 还没问完 → 直接念出来（语音场景下，人不必盯着屏幕看追问）
+      say(interp.question)
       scrollDown()
     } finally {
       setBusy(false)
@@ -352,9 +372,12 @@ export default function App() {
         }),
       }).then((r) => r.json())
 
-      if (res.error) message.error(res.error)
-      else if (res.ok) {
+      if (res.error) {
+        message.error(res.error)
+        say(res.error)
+      } else if (res.ok) {
         message.success(res.message)
+        say(res.message)
         // 确认后提议记住（改过预填或曾歧义）—— 未同意不入库
         try {
           const prop = await fetch('/api/lexicon/propose', {
@@ -373,7 +396,10 @@ export default function App() {
         } catch {
           /* 提议失败不影响主流程 */
         }
-      } else message.warning(res.message)
+      } else {
+        message.warning(res.message)
+        say(res.message)
+      }
 
       setDraft(null)
       sessionIdRef.current = sid
@@ -803,6 +829,7 @@ export default function App() {
         onClose={() => setSettingsOpen(false)}
         onSaved={(s) => {
           setEngine({ provider: s.provider, model: s.model })
+          setTtsEnabled(s.ttsEnabled !== false)
           message.success(
             s.provider === 'openai' ? `已切到模型 ${s.model}` : '已切回规则引擎（离线）'
           )

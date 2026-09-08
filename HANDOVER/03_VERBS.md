@@ -184,6 +184,7 @@ CANCELLED          CANCELLED                          │
 | GET | `/api/settings` | 模型配置（**Key 以掩码返回**） |
 | PUT | `/api/settings` | 保存模型配置 → `.env.local`，立即生效 |
 | POST | `/api/settings/test` | 连通性测试（返回服务端原始错误） |
+| POST | `/api/speak` | **语音播报（「嘴」）**：`{text}` → SAPI 本机出声；关掉时返回 `skipped:"disabled"` |
 | GET | `/api/lexicon` | 个人用语表列表（`userId` / `status` 可选） |
 | POST | `/api/lexicon` | upsert 一条用语（`phrase` + `kind` 必填） |
 | POST | `/api/lexicon/:id/reject` | 标 `rejected`，停止再提议 |
