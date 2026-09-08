@@ -4,8 +4,8 @@
 > 你就能接着往下做。Owner 会在新会话里对你说「去仓库把档案取出来读」，读的就是这里。
 
 **项目代号**：AGT-ERP · Agent 驱动的 ERP（PoC）
-**档案版本**：v1.3 · 2026-09-07（AI 骨干：大脑云端 + 语音本地）
-**代码状态**：12/12 动词；云端 LLM 已通（模型 100%/100%）；**ASR 仅脚手架 —— 零权重、未实跑**；本地 0.6B 仅可选暂缓；**T1 真链路已跑：`PersonalLexeme` 1 行 / `Panel` 7 行 / 0 条静默错误落库**（见 `05_TEST_LOG` 第五节）
+**档案版本**：v1.4 · 2026-09-08（13 动词 · T1–T5 全清 · 记忆网络 v1 · G1/G2 关闭）
+**代码状态**：**13 动词**（含 `lexicon.remember`）；云端 LLM 已通（模型 100%/100%）；**T1–T5 派工单全部完成**；SenseVoice int8 权重已就位（228MB，CER 待实跑）；TTS（SAPI）可用；记忆网络 v1 已落地（候选区 + 跨天升格）；**G1/G2 已关闭，G3 已缓解**。⚠️ **3 个 commit 待推送**（GitHub 间歇性抽风，本地安全）
 
 ### 事实源优先级（避免多份互相打架）
 
@@ -32,25 +32,23 @@
 
 ---
 
-## 二、当前状态快照（2026-09-07，与仓库核对）
+## 二、当前状态快照（2026-09-08，与仓库核对）
 
 | 项目 | 状态 | 说明 |
 |---|---|---|
-| 动词数量 | ✅ **12 / 12** | 销售订单→出货主线已齐（不含备选 price.query） |
-| Agent 引擎 | ✅ **云端模型已通** | `doubao-seed-2.0-lite`；失败仍回落 rules |
-| 前端画布 | ✅ 可用 | 不可变格子 + 修订 / 变更单分流 + 语音输入按钮 |
-| 数据库 | ✅ SQLite | 含 Delivery / Inventory.reserved；4 客户 / 3 产品 / 4 订单 |
-| 本地运行 | ✅ 已启动 | `http://localhost:3001`（按需） |
+| 动词数量 | ✅ **13** | 订单→出货 12 个 + `lexicon.remember`（D10） |
+| Agent 引擎 | ✅ **云端模型已通** | `doubao-seed-2.0-lite`；失败仍回落 rules；**低置信只读会诚实说「不确定」（D11）** |
+| 前端画布 | ✅ 可用 | 不可变格子 + 修订/变更单分流 + **「记住这个说法」实体按钮（含就地反馈）** + 语音输入按钮 |
+| 数据库 | ✅ SQLite | 含 Delivery / Inventory.reserved / **LexemeEvidence（记忆证据，#28）** |
+| 派工单 T0–T6 | ✅ **全部完成** | T1 真跑 9/10 · T2 权重 228MB · T3 评测集 39 条 · T4 消解收紧 · T5 抽 `core/` |
+| 记忆 | ✅ **v1 已落地** | 候选区 `candidate`（不参与消解）→ 跨 ≥2 天 → 升格 active；标准名/噪声自动过滤 |
+| TTS | ✅ `npm run say` | Windows SAPI，0MB；感官盘点：**文字 ✅ · 听 🟡（权重就位）· 说 ✅** |
 | 源码版本 | ✅ GitHub `main` | `EnglandTong/Agent_ERP` |
-| 远程仓库 | ✅ **已建** | `https://github.com/EnglandTong/Agent_ERP.git` |
-| 同步状态 | ✅ **已同步**（2026-09-07） | 本地 = 远端 = `d54f0b5`。开工前先 `git pull` |
+| **同步状态** | ⚠️ **3 commit 待推送** | `a61fc7d`(TTS) `15cef5d`(D10) `3ab1f50`(D11) —— GitHub 间歇性抽风，**本地安全**，恢复后 `git push origin main` |
 | 密钥文件 | ✅ Key 在 `.env.local` | 设置面板已填；不进 Git |
-| 评测 | ✅ 双跑基线 + 用语夹具 + 对比脚手架 | `eval` / `eval:lexicon` / `eval:compare` |
-| AI 骨干 | ✅ 三件套已锁定 | **大脑云端 + 语音本地**；0.6B 暂缓；见 `OFFLINE_BUNDLE.md` |
-| 个人用语表 | ✅ 已落地 | 确认卡「记住」+ 确认后提议；无向量库 |
-| 出货剩余量 | ✅ 部分出货 / 超量硬拦 | `PARTIALLY_SHIPPED` |
-| 已验证项 | ✅ 见 `05_TEST_LOG.md` | 含连通性 + 12 动词冒烟 + 用语/出货 + **T1 十条理口吻（云端 9/10、断网 6/10、0 静默错误）** |
-| 未验证项 | ⚠️ | **本地 ASR 实跑（权重已就位，缺 sherpa-onnx 运行时）**、并发、PostgreSQL |
+| 评测 | ✅ 四件套 | `eval`(53 条) / `eval:asr`(39 条真口吻) / `eval:lexicon` / `eval:compare`；基线：云端 97.4% / 规则 78.9%（真口吻） |
+| 已验证项 | ✅ 见 `05_TEST_LOG.md` | 32 项，含 T1 十条真口吻、两档基线、记忆冒烟 |
+| 未验证项 | ⚠️ | ASR CER 实跑（缺 sherpa-onnx 运行时）、TTS 接入画布、并发、PostgreSQL |
 
 ---
 
@@ -66,15 +64,13 @@
 
 ---
 
-## 四、接手后第一步做什么（按优先级）
+## 四、接手后第一步做什么（按优先级，2026-09-08 更新）
 
 | P | 事项 | 验收标准 |
 |---|---|---|
-| **P0** | **先同步再动手**：`git pull`（远端已含全部成果） | `git log --oneline origin/main -1` = 本地 HEAD |
-| **P0** | **干净树**：`git status` 无未提交落地改动（或按 Owner 确认 commit） | 工作树干净后再开下一波 |
-| **P0** | 让 Owner 填火山 API Key，「保存并测试」后跑 `npm run eval` | 模型列有数字；对比表更新 BASELINE |
-| **P1** | Owner 画布跑 10 条真口吻（开单→确认→部分出货→记住说法） | ✅ API 版已跑（`npm run trial:owner10`）；**剩 UI「记住」按钮手感**，Owner 点一次即可 |
-| **P1** | 本机装 SenseVoice + 热词；CER 过关后换掉 Web Speech | 见 `app/models/OFFLINE_BUNDLE.md` |
+| **P0** | **推送积压的 3 个 commit**：`git push origin main`（GitHub 间歇性抽风，重试即可） | `git log --oneline origin/main -1` = 本地 HEAD |
+| **P1** | Owner 体感验证：画布说「记住：老张就是张三」→ 点确认 → **明天再说一次** → 看升格提示 | `PersonalLexeme` 里 `老张` 从 `candidate` 变 `active` |
+| **P1** | 下一波开发候选（Owner 选）：**A** TTS 接入画布（说 + 听闭环）· **B** sherpa-onnx 运行时 + CER 实测 · **C** TTS/OCR 等 `modality` 扩展按 #27 协议走 | 每项独立验收，见 `12_HANDOFF` 下一步计划 |
 | **P2** | 阶段备份：push + 重打网盘包 | 见 `07_OPS.md` |
 
 ---
@@ -99,7 +95,7 @@
 | `00_START_HERE.md` | 本文件：状态 + 红线 + 下一步 | 每次接手先读 |
 | `01_VISION.md` | 产品哲学、命题、明确不做的事 | 第一次读 |
 | `02_ARCHITECTURE.md` | 五层架构、x-agent 协议、数据模型 | 写代码前 |
-| `03_VERBS.md` | **12 个动词**规格、业务规则、状态机、变更单、API（含 `/api/lexicon`） | 写动词前 |
+| `03_VERBS.md` | **13 个动词**规格、业务规则、状态机、变更单、API（含 `/api/lexicon`） | 写动词前 |
 | `04_DECISIONS.md` | 决策日志（含被否决方案与 Owner 纠正） | **必读**，避免重蹈覆辙 |
 | `05_TEST_LOG.md` | 已验证 / 未验证 / 复现命令 | 改完代码要回归时 |
 | `06_ROADMAP.md` | 12 动词全景、W1-Wn、节点 | 排期时 |
