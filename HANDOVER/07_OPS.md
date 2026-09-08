@@ -153,6 +153,7 @@ copy app\.env.example app\.env
 | 第二句识别混着第一句的字 | 复用了同一个 `OfflineStream`（它会累加音频） | `asr.ts` **每请求新建 stream**；这条最能伪装成"模型有问题" |
 | 改了 `src/server/asr.ts` 没反应 | `npm run serve` **没有 watch** | 重启服务；旧 node 进程是"改了没生效"的头号嫌疑 |
 | 3001 上看不到新按钮/新面板项 | 3001 发的是 `dist`（`@fastify/static`） | `npm run build` 后刷新；改 UI 期间直接用 **5173**（vite 代理只转 `/api`，二进制照转） |
+| `POST /api/interpret` 回 **400** `FST_ERR_CTP_INVALID_CONTENT_LENGTH`（"body size did not match Content-Length"） | **Git Bash 的 `curl -d '{…中文…}'`** 字节数与 Content-Length 对不上 —— 看着像服务端坏了，其实是 shell | 把 body 写进文件再 `--data-binary @body.json`（PowerShell 下 `-d` 通常没事，别在两种 shell 之间照抄） |
 | 推送 GitHub 失败 | **沙箱网络被屏蔽** | 只能本地推（见上） |
 
 ---

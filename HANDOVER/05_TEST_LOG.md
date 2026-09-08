@@ -77,6 +77,8 @@
 ## 三、复现命令集（复制即用）
 
 ```bash
+# ⚠ Git Bash 下别用 `curl -d '{…中文…}'`（字节数对不上 → 400 FST_ERR_CTP_INVALID_CONTENT_LENGTH）
+#   改用 `--data-binary @body.json`；下面这些命令在 PowerShell 下照抄即可
 # 1. 健康检查 + 当前引擎
 curl -s localhost:3001/api/health
 
