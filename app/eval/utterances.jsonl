@@ -4,7 +4,7 @@
 {"id":"c04","utterance":"王五要C-300 20个","verb":"order.create","slots":{"customer":"王五","product":"C-300","quantity":"20"}}
 {"id":"c05","utterance":"给张来50个B-200","verb":"order.create","slots":{"customer":"张","product":"B-200","quantity":"50"}}
 {"id":"c06","utterance":"帮我开一张单，客户张三，A-100，80个，下周五交","verb":"order.create","slots":{"customer":"张三","product":"A-100","quantity":"80","delivery_date":"下周五"}}
-{"id":"c07","utterance":"张三订A一百，数量三百","verb":"order.create","slots":{"customer":"张三","product":"A一百","quantity":"三百"}}
+{"id":"c07","utterance":"张三订A一百，数量三百","verb":"order.create","slots":{"customer":"张三","product":"A-100","quantity":"三百"},"note":"口语型号；ASR 规整后期望规范码 A-100"}
 {"id":"c08","utterance":"给李四来五十个标准件B型","verb":"order.create","slots":{"customer":"李四","product":"标准件B型","quantity":"五十"}}
 {"id":"c09","utterance":"张三要A-100，按老价格，明天要","verb":"order.create","slots":{"customer":"张三","product":"A-100","delivery_date":"明天","unit_price":"按老价格"}}
 {"id":"c10","utterance":"给C001下单A-100一百个","verb":"order.create","slots":{"customer":"C001","product":"A-100","quantity":"一百"}}
