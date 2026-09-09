@@ -26,6 +26,7 @@ red lines / parallel discipline).
 | [00_START_HERE.md](./HANDOVER/00_START_HERE.md) | Status snapshot, five red lines, next steps |
 | [01_VISION.md](./HANDOVER/01_VISION.md) | Product philosophy and explicit non-goals |
 | [02_ARCHITECTURE.md](./HANDOVER/02_ARCHITECTURE.md) | Five-layer architecture, x-agent protocol, data model |
+| [`app/src/core/01_OBSERVATION.md`](./app/src/core/01_OBSERVATION.md) | **Input-side standard**: unified Observation + pluggable adapters (senses / models) |
 | [03_VERBS.md](./HANDOVER/03_VERBS.md) | **12 verb** specs, business rules, change-order mechanism |
 | [04_DECISIONS.md](./HANDOVER/04_DECISIONS.md) | Decision log (incl. rejected options and owner corrections) |
 | [05_TEST_LOG.md](./HANDOVER/05_TEST_LOG.md) | Verified / unverified items with repro commands |
