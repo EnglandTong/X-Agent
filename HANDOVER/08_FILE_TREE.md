@@ -28,8 +28,11 @@
 | 文件 | 职责 |
 |---|---|
 | `src/core/00_MANIFEST.md` | **协议一页纸**：三个消费者、字段表、消解优先级、加能力套路、铁律、独立仓触发条件 |
+| `src/core/01_OBSERVATION.md` | **输入侧对外标准**：Observation + 感官/模型适配器分工与检查清单 |
+| `src/core/observation.ts` | Observation / SensoryAdapter / ModelAdapter 纯类型 + `textObservation` / `observationText` |
+| `src/core/index.ts` | core 对外 re-export |
 | `src/core/manifest.schema.json` | x-agent manifest 的结构声明（JSON Schema，可用于校验） |
-| `src/core/run.ts` | **Run 六态**（received/interpreted/awaiting/executed/blocked/abandoned）+ 合法转移表，纯类型 |
+| `src/core/run.ts` | **Run 六态**（received/interpreted/awaiting/executed/blocked/abandoned）+ 合法转移表，纯类型；modality 对齐 Observation |
 | `src/core/registry.ts` | 能力注册表（**只登记，不含实现**），保证 core 搬得走 |
 
 > 搬仓目的地：**With me 主仓**（#27 / D1）。搬的前提是守住「core 不 import server」——
@@ -81,7 +84,8 @@
 | `scripts/verify-asr-e2e.ts` | **「耳」等价验证**：`npm run verify:asr`（需服务在跑）。A 39 条 wav 逐条 `POST /api/asr` 与报告 hyp **逐字比** · B CER 口径不重算（避免第二份实现）· C 真人语料计数 · D `decodeMs`/RTF 分布。缺权重/缺服务只打印指引并 **exit 0**，不是 CI 硬门 |
 | `scripts/smoke-delivery-remaining.ts` | 部分出货 / 超量硬拦冒烟（断言 + 非 0 退出） |
 | `scripts/smoke-multiline-reserve.ts` | 多行订单 + 标量 qty 硬错 + 预留同步释放：`npm run smoke:multiline` |
-| `scripts/smoke-memory.ts` | **记忆策略冒烟**：候选区 → 跨天升格 → 标准名/噪声过滤，6 项断言：`npm run smoke:memory` |
+| `scripts/smoke-memory.ts` | **记忆策略冒烟**：候选区 → 跨天升格 → 标准名/噪声过滤 + v2 共现：`npm run smoke:memory` |
+| `scripts/smoke-observation.ts` | **Observation 契约冒烟**：`npm run smoke:observation`（纯类型路径，不启服务） |
 | `scripts/smoke-asr-normalize.ts` | **ASR 文本规整冒烟**：`npm run smoke:asr-normalize`（SenseVoice 读法 + 幂等 + 数量误伤守卫，纯函数不启服务） |
 | `scripts/speak.ts` | **TTS CLI**：`npm run say -- 的话`；实现在 `src/server/speak.ts`（画布与 CLI 共用一套，避免两份逻辑漂移） |
 | `scripts/smoke-verbs.ts` | 12 动词冒烟 |

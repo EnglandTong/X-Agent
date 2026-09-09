@@ -98,6 +98,7 @@
 | `00_START_HERE.md` | 本文件：状态 + 红线 + 下一步 | 每次接手先读 |
 | `01_VISION.md` | 产品哲学、命题、明确不做的事 | 第一次读 |
 | `02_ARCHITECTURE.md` | 五层架构、x-agent 协议、数据模型 | 写代码前 |
+| （实现旁）`app/src/core/01_OBSERVATION.md` | **输入侧对外标准**：Observation + 感官/模型适配器 | 接新耳/眼/模型前 |
 | `03_VERBS.md` | **13 个动词**规格、业务规则、状态机、变更单、API（含 `/api/lexicon`） | 写动词前 |
 | `04_DECISIONS.md` | 决策日志（含被否决方案与 Owner 纠正） | **必读**，避免重蹈覆辙 |
 | `05_TEST_LOG.md` | 已验证 / 未验证 / 复现命令 | 改完代码要回归时 |

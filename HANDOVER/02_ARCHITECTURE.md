@@ -2,6 +2,23 @@
 
 ---
 
+## 〇、输入统一标准（Observation · 2026-09-09）
+
+> 对外契约全文：`app/src/core/01_OBSERVATION.md` + `observation.ts`。  
+> **命题**：无论键盘 / 耳 / 眼（远期），进 Agent 之前都是同一种 **Observation**；核心只吃辨认后的自然语言。  
+> **外层可换**：感官适配器、模型适配器。**内层不换**：interpret → resolve → confirm → run。
+
+```
+外层 Adapter（可换）                    内层 Core（统一）
+采集 → 辨认(ASR/OCR/…) → Observation.text → interpret → resolve → Action(动词)
+模型适配(云端/本地/规则) ───────────────↗
+```
+
+加官 = 加 `modality` + 一个适配器；**禁止**新定第三套协议（D3）。
+
+---
+
+
 ## 一、五层结构
 
 ```
