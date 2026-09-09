@@ -187,5 +187,7 @@ Owner 的关键话 / 发生的事 → 定论：
 | 本轮撞上的既有缺陷（**只登记、未修**） | `PUT /api/settings` 的 `provider` 不遵守「不传即不改」（`index.ts:162`）→ 只带部分字段的 PUT 会把线上 `openai` 静默降成 `rules` 并写进 `.env.local`。实测改用**进程环境变量**绕开以免污染配置文件。已进 `07_OPS` §七 技术债 |
 | 「34% CER 接上耳朵后第一次真砸到体验」 | **验收口径先对齐**：那是"耳朵换对了"的证据，不是回归；救它的是**文本规整**工单（落点 `/api/interpret`，因为浏览器引擎的文本同样要救） |
 | 浏览器采音无法命令行自证（本机无 ffmpeg、无头浏览器授权未知） | **不假装测过**：交人工手测（步骤在 `05_TEST_LOG` §二），同时让它**可**自证 —— `encodeWav` 是纯函数，录完能「存为语料」再在浏览器外用 `curl --data-binary` 复现同一段字节 |
+| Owner：「核对本地 → 提交 → 推 GitHub」 | **已推 `eb021cd..6760ee5`（4 个提交，无 `--force`、未跳钩子）**，本地/远端 `rev-parse` 一致。推送前对账暴露档案**三处过时转述**并当场校正：① `00` 说远端停在 `7daba7a`（实际推送前已在 `eb021cd`）；② `07_OPS` 把「沙箱推不动 GitHub」写成通用结论（本目录实测可推，与 `04_DECISIONS:141` 早有的判断对齐）；③ `00` §四 P0 的验收 SHA 仍是旧值 |
+| 工作树剩一行 `app/eval/failures.jsonl` 漂移 | 云端把 quantity 回成 `五十个`（原 `五十`）——**分数中性**：`slotHit` 用双向 `includes`（`eval-interpret.ts:70`），带单位后缀算命中；文件里 `一百个`/`一百件` 早就是同型。**选择提交而非 `checkout --` 回滚**：这是被跟踪的生成物，留着脏会让下轮 `git status` 出现无解释文件；真实结论（云端倾向连单位一起回、规整层要能吃掉后缀）随 commit message 入库 |
 
 **本轮交付**：`src/server/asr.ts`（「耳」，与离线评测共用同一份实现）· `src/ui/voiceRecorder.ts` · `POST /api/asr` + `/api/asr/status` + `/api/asr/warm` + `PUT /api/asr/corpus/:id` · `asrEngine` 设置四处 + 面板单选与「耳朵自检」· `npm run verify:asr`（**39/39 逐字等价 · RTF p50 0.039**）· 四闸门回归全不劣化（typecheck 0 · 96.2%/95.3% · 100%/100% · 97.4%）。
