@@ -9,11 +9,11 @@
  * 本地示例（PowerShell）：
  *   $env:LOCAL_LLM_BASE_URL="http://127.0.0.1:11434/v1"
  *   $env:LOCAL_LLM_API_KEY="ollama"
- *   $env:LOCAL_LLM_MODEL="qwen2.5:1.5b"
+ *   $env:LOCAL_LLM_MODEL="qwen3:0.6b"
  *   npx tsx scripts/eval-compare-models.ts
  */
 
-import { readFileSync, writeFileSync, mkdirSync, readdirSync, existsSync } from 'node:fs'
+import { readFileSync, writeFileSync, mkdirSync, readdirSync } from 'node:fs'
 import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { PrismaClient } from '@prisma/client'
@@ -181,19 +181,22 @@ ${rows
   )
   .join('\n')}
 
-## 结论门槛（阶段 4）
+## 结论门槛（阶段 4 / D9）
 
 - 本地小模型 **动词≥规则** 且 **槽位≥规则×0.95**，或「本地 + 规则兜底」可接受 → 可谈内嵌
 - 未达标 → 继续云端；错例改 prompt/消解，不先换更大云端模型
+
+${decide(rows)}
 
 ## 怎么复跑本地
 
 \`\`\`powershell
 $env:LOCAL_LLM_BASE_URL="http://127.0.0.1:11434/v1"
 $env:LOCAL_LLM_API_KEY="ollama"
-$env:LOCAL_LLM_MODEL="qwen2.5:1.5b"
+$env:LOCAL_LLM_MODEL="qwen3:0.6b"
+$env:SKIP_CLOUD="1"   # 无云端 Key 时
 cd app
-npx tsx scripts/eval-compare-models.ts
+npm run eval:compare
 \`\`\`
 `
 
@@ -201,17 +204,65 @@ npx tsx scripts/eval-compare-models.ts
   writeFileSync(join(RESULTS, 'compare-models.json'), JSON.stringify({ at: new Date().toISOString(), rows }, null, 2), 'utf-8')
   console.log(md)
 
-  // 同步一份到 BASELINE 旁的说明
-  const notePath = join(EVAL_DIR, 'COMPARE_MODELS.md')
-  if (!existsSync(notePath)) {
-    writeFileSync(
-      notePath,
-      `# 小模型对比说明\n\n运行 \`npx tsx scripts/eval-compare-models.ts\` 生成 \`results/compare-models.md\`。\n最新结果以该文件为准。\n`,
-      'utf-8'
-    )
-  }
+  // 同步决策摘要到 COMPARE_MODELS.md（可进 git）
+  writeFileSync(
+    join(EVAL_DIR, 'COMPARE_MODELS.md'),
+    `# 小模型对比说明
+
+运行 \`npm run eval:compare\` 生成 \`results/compare-models.md\`。最新结果以该文件为准。
+
+## 当前产品分工（2026-09-09）
+
+| 角色 | 选择 |
+|---|---|
+| 大脑 | **云端 LLM**（D9：本地 0.6B **未达标**，不切默认） |
+| 语音 | **本地 ASR**（SenseVoice）+ interpret 文本规整 |
+| 规则 | 无 Key / 失败时回落 |
+
+## 最近一次对比（${new Date().toISOString().slice(0, 10)}）
+
+| 引擎 | 模型 | 动词 | 槽位 |
+|---|---|---|---|
+${rows
+  .map(
+    (r) =>
+      `| ${r.label} | ${r.model || '—'} | ${(r.verbAccuracy * 100).toFixed(1)}% | ${(r.slotHitRate * 100).toFixed(1)}% |`
+  )
+  .join('\n')}
+
+${decide(rows)}
+
+## 可选：对比本地 0.6B
+
+\`\`\`powershell
+$env:LOCAL_LLM_BASE_URL="http://127.0.0.1:11434/v1"
+$env:LOCAL_LLM_API_KEY="ollama"
+$env:LOCAL_LLM_MODEL="qwen3:0.6b"
+$env:SKIP_CLOUD="1"
+npm run eval:compare
+\`\`\`
+`,
+    'utf-8'
+  )
 
   await prisma.$disconnect()
+}
+
+function decide(rows: Awaited<ReturnType<typeof runEngine>>[]): string {
+  const rules = rows.find((r) => r.label === 'rules')
+  const local = rows.find((r) => r.label === 'local')
+  if (!local) {
+    return `### D9 裁决\n\n未跑本地列（缺 \`LOCAL_LLM_*\`）→ **默认档保持云端**。`
+  }
+  if (!rules) {
+    return `### D9 裁决\n\n缺规则基线，无法裁决。`
+  }
+  const verbOk = local.verbAccuracy + 1e-9 >= rules.verbAccuracy
+  const slotOk = local.slotHitRate + 1e-9 >= rules.slotHitRate * 0.95
+  if (verbOk && slotOk) {
+    return `### D9 裁决\n\n✅ 本地达标（动词 ${(local.verbAccuracy * 100).toFixed(1)}% ≥ 规则 ${(rules.verbAccuracy * 100).toFixed(1)}%；槽位 ${(local.slotHitRate * 100).toFixed(1)}% ≥ 规则×0.95=${(rules.slotHitRate * 0.95 * 100).toFixed(1)}%）→ **可谈内嵌 / 切默认档**。`
+  }
+  return `### D9 裁决\n\n❌ 本地未达标（动词 ${(local.verbAccuracy * 100).toFixed(1)}% vs 规则 ${(rules.verbAccuracy * 100).toFixed(1)}%；槽位 ${(local.slotHitRate * 100).toFixed(1)}% vs 规则×0.95=${(rules.slotHitRate * 0.95 * 100).toFixed(1)}%）→ **默认档保持云端**；本地仅作设置面板可选。`
 }
 
 main().catch((e) => {

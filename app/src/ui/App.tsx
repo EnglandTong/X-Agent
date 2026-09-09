@@ -48,6 +48,15 @@ interface LexPropose {
   targetRaw?: string
 }
 
+interface MemoryNotice {
+  phrase: string
+  slot: string
+  targetId: string
+  targetLabel: string | null
+  days: number
+  message: string
+}
+
 const EXAMPLES = [
   { label: '完整流程', text: '给张三来120个A-100，下周三要' },
   { label: '重名歧义', text: '给张来50个B-200' },
@@ -117,6 +126,7 @@ export default function App() {
   const panelsRef = useRef(panels)
   const [listening, setListening] = useState(false)
   const [lexProposals, setLexProposals] = useState<LexPropose[]>([])
+  const [memoryNotices, setMemoryNotices] = useState<MemoryNotice[]>([])
   const [ttsEnabled, setTtsEnabled] = useState(true)
   /** 耳朵用哪只：不 import 服务端类型，免得前端反向依赖 server */
   const [asrEngine, setAsrEngine] = useState<'browser' | 'local'>('browser')
@@ -494,6 +504,11 @@ export default function App() {
       } else if (res.ok) {
         message.success(res.message)
         say(res.message)
+        // 记忆 v2：跨天升格 → 画布主动提示「我注意到你常说 X」
+        if (Array.isArray(res.memoryNotices) && res.memoryNotices.length) {
+          setMemoryNotices((prev) => [...res.memoryNotices, ...prev].slice(0, 8))
+          for (const n of res.memoryNotices as MemoryNotice[]) say(n.message)
+        }
         // 确认后提议记住（改过预填或曾歧义）—— 未同意不入库
         try {
           const prop = await fetch('/api/lexicon/propose', {
@@ -776,6 +791,68 @@ export default function App() {
             busy={busy}
           />
         ))}
+
+        {memoryNotices.length > 0 && (
+          <div
+            style={{
+              background: '#e6f4ff',
+              border: '1px solid #91caff',
+              borderRadius: 6,
+              padding: '8px 10px',
+              marginBottom: 8,
+              fontSize: 12,
+            }}
+          >
+            <div style={{ marginBottom: 6, color: '#1677ff' }}>记忆升格</div>
+            {memoryNotices.map((n, i) => (
+              <div
+                key={`${n.phrase}-${n.targetId}-${i}`}
+                style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  gap: 8,
+                  marginBottom: 4,
+                }}
+              >
+                <span>{n.message}</span>
+                <Space size={4}>
+                  <Button
+                    size="small"
+                    type="text"
+                    onClick={async () => {
+                      // 撤销升格：标 rejected，下次同说法不再自动生效
+                      try {
+                        const list = await fetch('/api/lexicon?status=active').then((r) => r.json())
+                        const hit = (Array.isArray(list) ? list : []).find(
+                          (x: { phrase?: string; targetId?: string }) =>
+                            x.phrase === n.phrase && x.targetId === n.targetId
+                        )
+                        if (hit?.id) await fetch(`/api/lexicon/${hit.id}/reject`, { method: 'POST' })
+                      } catch {
+                        /* 撤销失败不挡 */
+                      }
+                      setMemoryNotices((prev) => prev.filter((_, j) => j !== i))
+                      message.info('已撤销这则记忆')
+                    }}
+                  >
+                    撤销
+                  </Button>
+                  <Button
+                    size="small"
+                    type="link"
+                    onClick={() => setMemoryNotices((prev) => prev.filter((_, j) => j !== i))}
+                  >
+                    知道了
+                  </Button>
+                </Space>
+              </div>
+            ))}
+            <Button size="small" type="text" onClick={() => setMemoryNotices([])}>
+              全部关闭
+            </Button>
+          </div>
+        )}
 
         {lexProposals.length > 0 && (
           <div

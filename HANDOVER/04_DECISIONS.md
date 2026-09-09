@@ -29,7 +29,7 @@
 | 18 | 多行订单 | `order.create` 支持 `items[]`（优先于单行字段）；NL 可抽多型号+数量 | 永远单行、第二行静默丢弃 |
 | 19 | 预留↔出货 | `delivery.confirm` 扣 qty 同时 `reserved -= min(reserved, 出货量)`；PoC **未**按 orderId 分账 | 两套账互不相干导致 available 漂 |
 | 20 | AI 骨干三件套 | **Agent + LLM + 语音** 为基础；规则仅回落 | 纯规则正式版 / 无脑断网版 |
-| 21 | 默认大脑 | **当前：云端 LLM**；本地 Qwen3-0.6B **远期可选、本机暂不跑** | 现阶强制本地大脑 |
+| 21 | 默认大脑 | **当前：云端 LLM**；本地 Qwen3-0.6B 已对比（83%/89% < 规则）→ **不切默认**，设置面板可选 | 现阶强制本地大脑 |
 | 22 | 蒸馏 | **本阶段不做**；中期先通用小模型 | 立刻蒸馏专属小心模型 |
 | 23 | 断网包分阶 | **当前只推本地 ASR ~229MB**；完整 ASR+0.6B≈640MB 为远期 | 现阶强制本机跑 0.6B |
 | 24 | ASR | **本地**：sherpa-onnx + SenseVoice int8；热词必做；CER 过关再换 Web Speech | FunASR Python 包（易联网校验） |
@@ -385,3 +385,17 @@ Owner 拍板（含当日澄清）：
 | 评测金标 | `c07` 期望 product 从 `A一百` 改为 `A-100`（规整后应抽出规范码；旧金标靠空串 `includes` 假阳性凑过） |
 
 **验收**：`npm run smoke:asr-normalize` 全过；`npm run eval:rules` **96.2% / 95.3%**（不劣化）；`eval:asr` 规则档 **78.9%**（不劣化）；`product` 分类 **6/6=100%**（含 `B两百`/`A100`）；API：`给张三来五十个 a 杠一百` → product=`A-100` 消解成功。
+
+---
+
+## 十八、记忆 v2 + D9 对比 + UI 收尾（2026-09-09 · C/D/E）
+
+| 项 | 结论 |
+|---|---|
+| **C 升格提示** | `run` 成功且 `observeUsage.promoted` → 响应带 `memoryNotices`；画布蓝条「我注意到你常说 X——已记为 Y」，可撤销（reject） |
+| **C 共现** | `GET /api/memory/cooccur`：从 `Panel.entities` 两两派生边，**不新建图库**；`minCount`/`limit`/`sessionId` 可查 |
+| **D 对比** | Ollama `qwen3:0.6b` CPU · 53 条：本地 **83.0%/89.0%** vs 规则 **96.2%/95.3%** → **D9 不切默认档** |
+| **E UI** | `ResultView`：`data.rows` → 库存/客户/出货表；`credit.check` 专用信用行，不再刷「仓库 — · 交期 —」 |
+
+复现：`npm run smoke:memory`（含 v2）· `LOCAL_LLM_*=… SKIP_CLOUD=1 npm run eval:compare` · 画布查库存/信用目视。
+

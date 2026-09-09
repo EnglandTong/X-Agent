@@ -51,9 +51,9 @@ AGT-ERP 是一个 **自然语言驱动的 ERP PoC**：说一句话 → 判断意
 | **A · 嘴接进画布** | ✅ **已完成**（2026-09-08） | `POST /api/speak`（`src/server/speak.ts`，排队串行 + 失败降级）+ 设置面板开关与试听；端到端「查单 → 播报」实测出声。**顺带修掉假阳性**：原 `-EncodedCommand` 在本机 EPERM，而 `spawnSync` 降级分支让「exit 0」看起来像成功（见 `04_DECISIONS` 十四 / `05_TEST_LOG` 已修缺陷） | 半天 |
 | **B · CER 实测** | ✅ **已完成**（2026-09-08） | 走 **npm `sherpa-onnx-node`**（不装 Python/CLI）；音频用 `npm run asr:wavs`（SAPI 合成）造。39 条：**CER 34.02% · 完全命中 10/39 · 专有名词 49.1%**；报告 `app/eval/results/asr-cer.md`。**新发现**：SenseVoice **不支持 hotwords**，型号被念成中文（`A-100`→`a 杠一百`）→ 规整层**记 backlog** | 半天 |
 | **ASR 文本规整** | ✅ **已完成**（2026-09-09） | `src/server/asrNormalize.ts` + `/api/interpret` 入口；`npm run smoke:asr-normalize`；规则档 **96.2%/95.3%** · 真口吻 **78.9%** 不劣化；`product` 分类 6/6。决策 #17 | 半天 |
-| **C · 记忆 v2** | 候选区升格时**画布主动提示**「我注意到你常说 X」；共现查询 API（Panel 派生，SQL 已验证） | 冒烟扩展 + 画布提示条 | 1 天 |
-| **D · D9 对比** | 本地 Qwen3-0.6B（Ollama）vs 云端同一 eval，出对比表 → 决定默认档 | `eval:compare`（SKIP_CLOUD=1 反着用） | 1 天 |
-| **E · 收尾杂项** | 库存/信用格子的表格化展示（`data.rows` 未被消费）；`credit.check` 去掉「仓库 — · 交期 —」 | UI 小修 | 1–2 小时 |
+| **C · 记忆 v2** | ✅ **已完成**（2026-09-09） | 升格时 `memoryNotices` + 画布提示条；`GET /api/memory/cooccur`；`smoke:memory` 9 断言 | 半天 |
+| **D · D9 对比** | ✅ **已完成**（2026-09-09） | Ollama `qwen3:0.6b` vs 规则：本地 **83.0%/89.0%** < 规则 **96.2%/95.3%** → **默认档保持云端**。见 `COMPARE_MODELS.md` | 半天 |
+| **E · 收尾杂项** | ✅ **已完成**（2026-09-09） | `ResultView` 消费 `data.rows`（库存/客户/出货表）；`credit.check` 专用信用字段，去掉「仓库 — · 交期 —」 | 1–2 小时 |
 
 #### 给 Workbuddy 的接手指引
 
@@ -451,7 +451,7 @@ verbs 靠 manifest 声明登记进 registry，不靠代码引用。守住这条�
 | D6 | 记忆跨应用 | ✅ 全局共享，审计按应用隔离 |
 | D7 | 第二个应用 | 个人知识库（未最终确认） |
 | D8 | 是否允许上云 | ✅ 已默认允许，但保留无 Key 时 R0 保底 |
-| D9 | 默认档切本地 | ⏸ 等本地/云端对比表再定 |
+| **D9** | 默认档切本地 | ❌ **已裁决不切**（2026-09-09）：`qwen3:0.6b` 动词 83.0% / 槽位 89.0% 低于规则 96.2%/95.3%（门槛：动词≥规则且槽位≥规则×0.95）。默认仍云端；本地仅可选 |
 | **D10** | 自然语言「记住：A 就是 B」做成动词吗 | ✅ **已做**（2026-09-08）：`lexicon.remember` 第 13 动词；口吻强规则识别 + handler 消解到客户/产品 + `observeUsage(explicit)` 立即生效；标准名拒绝记录。见 `03_VERBS` / `04_DECISIONS` 第十四节 |
 | **D11** | 只读结果带「我不确定」 | ✅ **已做**（2026-09-08）：只读且置信度 <0.75 时 interpret 附 question；信号词兜底置信度 0.9→0.72/0.78。见 `04_DECISIONS` 第十节 |
 

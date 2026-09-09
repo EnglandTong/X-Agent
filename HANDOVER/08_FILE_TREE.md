@@ -50,6 +50,7 @@
 | `server/speak.ts` | — | **「嘴」TTS 播报**：排队串行 + 失败只降级（不出声也绝不抛错） | 画布与 `npm run say` 共用；**禁用 `-EncodedCommand`**（本机 EPERM），见 `04_DECISIONS` 十四 |
 | `server/asr.ts` | — | **「耳」SenseVoice 离线识别**：single-flight 预热 + 每请求新建 stream + 失败只降级（一律 200，`reason` 枚举） | **必须 `createAsync`/`decodeAsync`**（同步版实测冻死事件循环）；顶层零副作用、**不 import `settings.ts`**（会成环）；日志走 **stderr**（`asr-transcribe.ts` 的 stdout 就是评测结果）；权重加载 **+303MiB 且无释放接口** |
 | `server/asrNormalize.ts` | — | **ASR 文本规整**：型号/单号/编码读法 → 主数据写法（`a 杠一百`→`A-100`）。词典反查 + 通用模式；**只被 `/api/interpret`（及同路径的 eval）调用，不进 `asr.ts`** | 幂等；不误伤「来一百个」；前导零编码不插横杠 |
+| `server/memory.ts` | — | **记忆网络 v2**：升格文案 `formatPromoteNotice` + `cooccurFromPanels`（Panel.entities 派生边） | 不新建图库 |
 | `server/lexicon.ts` | — | 个人用语表 CRUD / 匹配 / 提议 | 非向量库 |
 | `server/remaining.ts` | — | 订单行剩余可出货量 | delivery.* 共用 |
 | `server/panels.ts` | 229 | 格子落库、修订准备（查实时状态）、链路查询 | |

@@ -9,6 +9,9 @@
 | # | 验证项 | 方法 | 结果 |
 |---|---|---|---|
 | 36 | **ASR 文本规整（型号读法归一）** | `npm run smoke:asr-normalize` + `eval:rules` + `eval:asr`（规则）+ `POST /api/interpret` | ✅ 冒烟全过（`a 杠一百`/`B两百`/`c零零一`/`s o 杠二零二六杠幺零零七`/`A100` → 规范码；「来一百个」不误伤；幂等）。✅ 规则档 **96.2%/95.3%** 不劣化；真口吻 **78.9%** 不劣化；`product` 分类 **6/6**。✅ API：`给张三来五十个 a 杠一百` → `asrNormalized:true` · product 消解到 A-100。落点 `/api/interpret`，**不改 asr.ts / CER hyp** |
+| 37 | **记忆 v2（升格提示 + 共现）** | `npm run smoke:memory` + `GET /api/memory/cooccur` | ✅ 9 断言全过（原 6 + 升格文案 + 共现边 count=2 + minCount 过滤）。升格时 run 响应带 `memoryNotices` |
+| 38 | **D9 · 本地 0.6B 对比** | `SKIP_CLOUD=1 LOCAL_LLM_MODEL=qwen3:0.6b npm run eval:compare` | ✅ 规则 96.2%/95.3% · 本地 83.0%/89.0% · **未达标 → 默认云端**。见 `COMPARE_MODELS.md` |
+| 39 | **E · ResultView 表格化** | 查库存 / 查客户 / 查信用目视 + `npm run build` | ✅ `data.rows` 出表；credit 只显示额度字段，无「仓库 — · 交期 —」 |
 | 1 | Formily 8 字段全由 Schema 渲染 | 浏览器实测 | 零控制台错误，控件类型正确 |
 | 2 | 客户消解 | 「给张三来…」 | 张三 → customerId，confidence 0.98 |
 | 3 | 日期消解 | 「下周三」 | → 2026-09-09（基于 today 计算） |
