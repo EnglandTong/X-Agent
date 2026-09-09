@@ -42,8 +42,7 @@ export function ResultView({
   result: VerbResult
   bare?: boolean
 }) {
-  const body =
-    verb === 'order.query' ? <QueryBody result={result} /> : <CreateBody result={result} />
+  const body = pickBody(verb, result)
   if (bare) return body
   return (
     <Card
@@ -54,6 +53,18 @@ export function ResultView({
       {body}
     </Card>
   )
+}
+
+function pickBody(verb: string, result: VerbResult) {
+  if (verb === 'order.query') return <OrderQueryBody result={result} />
+  if (verb === 'credit.check') return <CreditBody result={result} />
+  if (hasRows(result)) return <RowsBody verb={verb} result={result} />
+  return <CreateBody result={result} />
+}
+
+function hasRows(result: VerbResult): boolean {
+  const d = result.data
+  return Boolean(d && !Array.isArray(d) && Array.isArray((d as { rows?: unknown }).rows))
 }
 
 function Issues({ result }: { result: VerbResult }) {
@@ -79,7 +90,7 @@ function Issues({ result }: { result: VerbResult }) {
   )
 }
 
-function QueryBody({ result }: { result: VerbResult }) {
+function OrderQueryBody({ result }: { result: VerbResult }) {
   const rows = Array.isArray(result.data) ? (result.data as any[]) : []
 
   if (!result.ok) {
@@ -145,6 +156,129 @@ function QueryBody({ result }: { result: VerbResult }) {
   )
 }
 
+/** inventory / customer / delivery.query —— data.rows 表格化（E 项） */
+function RowsBody({ verb, result }: { verb: string; result: VerbResult }) {
+  const rows = ((result.data as { rows?: any[] })?.rows ?? []) as any[]
+
+  if (!result.ok) {
+    return (
+      <>
+        <Issues result={result} />
+        <Typography.Text type="danger">{result.message}</Typography.Text>
+      </>
+    )
+  }
+  if (rows.length === 0) {
+    return <Empty description={result.message} image={Empty.PRESENTED_IMAGE_SIMPLE} />
+  }
+
+  const columns =
+    verb === 'inventory.query'
+      ? [
+          { title: '型号', dataIndex: 'product', width: 88 },
+          { title: '名称', dataIndex: 'name', width: 110 },
+          { title: '仓库', dataIndex: 'warehouse', width: 78 },
+          { title: '库存', dataIndex: 'qty', width: 64, align: 'right' as const },
+          { title: '预留', dataIndex: 'reserved', width: 64, align: 'right' as const },
+          { title: '可用', dataIndex: 'available', width: 64, align: 'right' as const },
+        ]
+      : verb === 'customer.query'
+        ? [
+            { title: '编码', dataIndex: 'code', width: 72 },
+            { title: '客户', dataIndex: 'name', width: 88 },
+            { title: '等级', dataIndex: 'level', width: 64 },
+            {
+              title: '额度',
+              dataIndex: 'creditLimit',
+              width: 96,
+              align: 'right' as const,
+              render: (v: unknown) => money(v),
+            },
+            {
+              title: '已用',
+              dataIndex: 'creditUsed',
+              width: 96,
+              align: 'right' as const,
+              render: (v: unknown) => money(v),
+            },
+            {
+              title: '可用',
+              dataIndex: 'available',
+              width: 96,
+              align: 'right' as const,
+              render: (v: unknown) => money(v),
+            },
+            { title: '常用仓', dataIndex: 'lastWarehouse', width: 78 },
+          ]
+        : [
+            {
+              title: '出货单',
+              dataIndex: 'deliveryNo',
+              width: 128,
+              render: (v: string) => <code style={{ fontSize: 12 }}>{v}</code>,
+            },
+            {
+              title: '订单',
+              dataIndex: 'orderNo',
+              width: 128,
+              render: (v: string) => <code style={{ fontSize: 12 }}>{v}</code>,
+            },
+            { title: '状态', dataIndex: 'status', width: 78 },
+            { title: '仓库', dataIndex: 'warehouse', width: 78 },
+            { title: '明细', dataIndex: 'lines' },
+          ]
+
+  return (
+    <>
+      <div style={{ fontSize: 13, marginBottom: 8 }}>{result.message}</div>
+      <Issues result={result} />
+      <Table
+        size="small"
+        pagination={false}
+        dataSource={rows}
+        rowKey={(_, i) => String(i)}
+        scroll={{ x: 520 }}
+        columns={columns}
+      />
+    </>
+  )
+}
+
+/** credit.check —— 只展示信用字段，不要「仓库 — · 交期 —」（E 项） */
+function CreditBody({ result }: { result: VerbResult }) {
+  const d =
+    result.data && !Array.isArray(result.data) ? (result.data as Record<string, any>) : null
+  return (
+    <>
+      <div style={{ fontSize: 13, marginBottom: 6 }}>
+        {result.ok ? (d?.pass === false ? '⚠️ ' : '✅ ') : '⛔ '}
+        {result.message}
+      </div>
+      <Issues result={result} />
+      {d && (
+        <Space direction="vertical" size={2} style={{ fontSize: 13 }}>
+          <div>
+            客户 <b>{d.customer ?? '—'}</b>
+            {d.code ? (
+              <>
+                {' '}
+                <code style={{ fontSize: 12 }}>{d.code}</code>
+              </>
+            ) : null}
+          </div>
+          <div>
+            拟下单{' '}
+            <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(d.amount)}</b>
+            {' · '}额度 {money(d.creditLimit)}
+            {' · '}已用 {money(d.creditUsed)}
+            {' · '}可用 <b style={{ fontVariantNumeric: 'tabular-nums' }}>{money(d.available)}</b>
+          </div>
+        </Space>
+      )}
+    </>
+  )
+}
+
 function CreateBody({ result }: { result: VerbResult }) {
   // 数组 / null / 空都不是「订单对象」—— 不要按订单字段去取，取不到就别渲染那一行
   const d =
@@ -173,10 +307,23 @@ function CreateBody({ result }: { result: VerbResult }) {
               )}
             </div>
           )}
-          {(d.customer || d.warehouse || d.deliveryDate) && (
+          {/* 只在真有仓库/交期时展示 —— 避免信用/出货确认卡刷「仓库 — · 交期 —」 */}
+          {(d.customer || d.warehouse || d.deliveryDate) && (d.warehouse || d.deliveryDate) && (
             <div>
-              客户 <b>{d.customer ?? '—'}</b> · 仓库 {d.warehouse ?? '—'} · 交期{' '}
-              {d.deliveryDate ?? '—'}
+              {d.customer != null && (
+                <>
+                  客户 <b>{d.customer}</b>
+                  {(d.warehouse || d.deliveryDate) && ' · '}
+                </>
+              )}
+              {d.warehouse != null && <>仓库 {d.warehouse}</>}
+              {d.warehouse != null && d.deliveryDate != null && ' · '}
+              {d.deliveryDate != null && <>交期 {d.deliveryDate}</>}
+            </div>
+          )}
+          {d.customer && !d.warehouse && !d.deliveryDate && !d.no && (
+            <div>
+              客户 <b>{d.customer}</b>
             </div>
           )}
           {d.originNo && (
@@ -197,6 +344,12 @@ function CreateBody({ result }: { result: VerbResult }) {
                   · 状态 <Tag style={{ fontSize: 11 }}>{d.status}</Tag>
                 </>
               ) : null}
+            </div>
+          )}
+          {d.deliveryNo && (
+            <div>
+              出货单 <code>{d.deliveryNo}</code>
+              {d.warehouse ? <> · 仓库 {d.warehouse}</> : null}
             </div>
           )}
         </Space>

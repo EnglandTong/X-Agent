@@ -11,6 +11,7 @@
  *   POST /api/verbs/:name/run    执行动词（领域层）
  *   POST /api/asr                一段 16k WAV 原始字节 → 文本（「耳」，本地 SenseVoice）
  *   GET  /api/asr/status         耳朵状态（是否支持 / 权重在不在 / 模型加载态）
+ *   GET  /api/memory/cooccur     记忆网络共现边（从 Panel.entities 派生）
  *   GET  /api/entities/:kind     实体选项（供表单下拉框异步加载）
  */
 
@@ -46,6 +47,7 @@ import {
   isStandardTerm,
   observeUsage,
 } from './lexicon'
+import { cooccurFromPanels, formatPromoteNotice, type MemoryNotice } from './memory'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '../..')
@@ -541,19 +543,39 @@ app.post<{
   // 记忆：观察一次「说法 → 目标」（决策 #28）
   //   先进候选区，跨 ≥2 天才升格为记忆卡；标准名与异常情况一律跳过。
   //   观察失败绝不影响主流程 —— 记忆是增益，不是主链路的一环。
+  //   v2：升格时带回 memoryNotices，画布主动提示「我注意到你常说 X」。
+  const memoryNotices: MemoryNotice[] = []
   if ((result as { ok?: boolean })?.ok) {
     for (const s of req.body?.slots ?? []) {
       if (s?.slot !== 'customer' && s?.slot !== 'product') continue
       const raw = s.raw != null ? String(s.raw).trim() : ''
       const targetId = (args as Record<string, unknown>)[s.field]
       if (!raw || raw.length < 2 || targetId == null || targetId === '') continue
-      await observeUsage(prisma, {
-        phrase: raw,
-        slot: s.slot,
-        targetId: String(targetId),
-        targetLabel: s.label ?? null,
-        source: 'observed',
-      }).catch(() => {})
+      try {
+        const obs = await observeUsage(prisma, {
+          phrase: raw,
+          slot: s.slot,
+          targetId: String(targetId),
+          targetLabel: s.label ?? null,
+          source: 'observed',
+        })
+        if (obs.promoted) {
+          memoryNotices.push({
+            phrase: obs.phrase,
+            slot: s.slot,
+            targetId: String(targetId),
+            targetLabel: s.label ?? null,
+            days: obs.days,
+            message: formatPromoteNotice({
+              phrase: obs.phrase,
+              targetLabel: s.label ?? null,
+              days: obs.days,
+            }),
+          })
+        }
+      } catch {
+        /* 观察失败不挡主流程 */
+      }
     }
   }
 
@@ -569,7 +591,26 @@ app.post<{
     supersedesId: req.body?.supersedesId ?? null,
   })
 
-  return { ...result, panelId: panel.id, panelSeq: panel.seq, sessionId: panel.sessionId }
+  return {
+    ...result,
+    panelId: panel.id,
+    panelSeq: panel.seq,
+    sessionId: panel.sessionId,
+    ...(memoryNotices.length ? { memoryNotices } : {}),
+  }
+})
+
+/** GET /api/memory/cooccur —— 从 Panel.entities 派生共现边（记忆网络，不新建图库） */
+app.get<{
+  Querystring: { minCount?: string; limit?: string; sessionId?: string }
+}>('/api/memory/cooccur', async (req) => {
+  const minCount = req.query.minCount ? Number(req.query.minCount) : 2
+  const limit = req.query.limit ? Number(req.query.limit) : 30
+  return cooccurFromPanels(prisma, {
+    minCount: Number.isFinite(minCount) ? minCount : 2,
+    limit: Number.isFinite(limit) ? limit : 30,
+    sessionId: req.query.sessionId,
+  })
 })
 
 // ---------------------------------------------------------------- 画布

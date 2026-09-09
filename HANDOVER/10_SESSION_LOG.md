@@ -204,3 +204,17 @@ Owner 的关键话 / 发生的事 → 定论：
 | 验收 | `smoke:asr-normalize` 全过 · `eval:rules` **96.2%/95.3%** · `eval:asr` 规则 **78.9%** · API `a 杠一百`→ product A-100 |
 
 **本轮交付**：`src/server/asrNormalize.ts` · interpret 入口接线 · `npm run smoke:asr-normalize` · 决策 #17 · 档案 v1.7。
+
+---
+
+## 阶段十二 · C 记忆 v2 · D 本地对比 · E UI 收尾（2026-09-09）
+
+| 经过 | 结论 |
+|---|---|
+| Owner：「按 C → D → E 继续」 | 三连做完，不并行拆仓 |
+| C | `memoryNotices` 画布蓝条 + `GET /api/memory/cooccur`；smoke 扩到 9 断言 |
+| D | 本机装 Ollama 拉 `qwen3:0.6b`，53 条对比：**83%/89% vs 规则 96%/95%** → **D9 不切默认** |
+| E | `ResultView` 吃 `data.rows`；credit 专用视图 |
+
+**本轮交付**：`memory.ts` · ResultView 表格化 · COMPARE_MODELS D9 裁决 · HANDOVER 同步。
+
