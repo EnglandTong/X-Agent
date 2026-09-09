@@ -148,7 +148,7 @@ copy app\.env.example app\.env
 | 按钮出现「确认确认订单」 | 文案拼接重复 | `ConfirmCard` 用 `submitLabel` 区分三种提交 |
 | `tsx` 报 `ERR_REQUIRE_ASYNC_MODULE` | 脚本不在项目目录（被当 CJS） | 临时脚本放进 `app/` 再跑，跑完删 |
 | `npm run say` 打印「没出声」或抛 `spawn EPERM` | PowerShell **`-EncodedCommand`** 被本机环境拦截 | 已改 `-Command` + 单引号字面量（见 `04_DECISIONS` 十四）；**别改回去** |
-| CER 里型号全错（`A-100` → `a 杠一百`） | SenseVoice 把型号按中文读法念出来 | 待办：ASR 后处理规整 —— **记 backlog，本轮不做** |
+| CER 里型号全错（`A-100` → `a 杠一百`） | SenseVoice 把型号按中文读法念出来 | ✅ 已有后处理：`asrNormalize.ts` 在 `/api/interpret` 入口归一（CER 本身仍看原始 hyp，不掺规整） |
 | `POST /api/asr` 回 **415** | `fetch` 传 `ArrayBuffer` **不会自动带 Content-Type** | 前端必须显式写 `'Content-Type': 'application/octet-stream'`（`App.tsx` 里已注明） |
 | 第二句识别混着第一句的字 | 复用了同一个 `OfflineStream`（它会累加音频） | `asr.ts` **每请求新建 stream**；这条最能伪装成"模型有问题" |
 | 改了 `src/server/asr.ts` 没反应 | `npm run serve` **没有 watch** | 重启服务；旧 node 进程是"改了没生效"的头号嫌疑 |

@@ -341,9 +341,9 @@ Owner 拍板（含当日澄清）：
 | 热词为什么没用 | SenseVoice **不支持 hotwords**（仅 transducer + `modified_beam_search` 支持）。T2 里「热词表比换模型优先级高」的假设对 SenseVoice **不成立** —— 要走后处理规整 |
 | 最弱环节 | `qty` 62.2%：型号被念成中文读法（`A-100`→`a 杠一百`、`SO-2026-1007`→`s o 杠二零二六杠幺零零七`） |
 
-**记 backlog（本轮明确不做）**：
+**记 backlog（十五当时明确不做；十六后已落地，见十七）**：
 
-- ASR 文本规整层：把 `a杠一百`/`a 一 零 零` 归一回 `A-100`，用主数据词典反查。**这是提升真实准确率性价比最高的一步**，但属新能力，需单开工单。
+- ~~ASR 文本规整层~~ → **✅ 2026-09-09 已做**（`asrNormalize.ts`，落点 `/api/interpret`）
 - 真人录音 39 条重测 CER（Owner 念一遍即可，脚本已支持覆盖同 id）。**→ 2026-09-09 已有落点**：画布「存为语料」写 `eval/asr-wavs-real/`，`asr:cer` 优先读它（见十六）。
 
 ---
@@ -359,7 +359,7 @@ Owner 拍板（含当日澄清）：
 | 不做「卸载模型」按钮 | native 原型只有 `constructor,createStream,setConfig,decode,decodeAsync,getResult` —— **没有 free/destroy**。加载实测 **61→364MiB（+303MiB）不可回收**。兑现不了的按钮不做，改为把代价写进 UI 文案（面板：`加载后服务常驻约 XXXMiB，且不可回收`） |
 | 默认引擎 = `browser`（Owner 定） | **默认态即回退态**：`asr.ts` 顶层零副作用 → 默认下 `/api/asr`、`voiceRecorder.ts` 全不被触达，连 native 包都不 require。三层回退任一层单独生效就回到接线前的行为：代码（默认 browser）/ 配置（面板或 `ASR_ENGINE=browser`，免重启）/ 物理（权重改名 → 恒 200 + `model_missing`） |
 | 识别失败**不**回落另一只耳朵 | 会重新引入本轮要消灭的歧义 —— 分不清是哪只耳朵听错的字。`startVoiceLocal()` 失败只给可读文案（`ASR_REASON` 表），**绝不静默改用 Web Speech** |
-| 文本规整落点 = `/api/interpret` 入口 | 不放 `asr.ts`：**浏览器引擎的文本同样要救**（Web Speech 一样会把型号听歪）。规整仍是独立工单，本轮不做 |
+| 文本规整落点 = `/api/interpret` 入口 | 不放 `asr.ts`：**浏览器引擎的文本同样要救**（Web Speech 一样会把型号听歪）。**→ 十七已落地** |
 | 上传格式 | `application/octet-stream` 原始字节（**全仓第一个非 JSON body**）：比 base64 省 33%、免两端编解码、`curl --data-binary` 可直接手工复现。`bodyLimit` 2MiB≈65s；域内 15s 上限由 `asr.ts` 自己数（Fastify v5 **无 per-route bodyLimit**），回 `too_long` 而不是裸 413 |
 | 并发不按「嘴」抄 | `speak.ts` 的串行队列理由是"SAPI 是外部单例资源"。async 解码不阻塞事件循环 → 改为 `inflight>=2 → busy`，防的是**并发加载两次 = 双倍 300MB** |
 | 真人语料 | `PUT /api/asr/corpus/:id` → `eval/asr-wavs-real/<id>.wav`。安全边界（服务默认绑 `0.0.0.0`，这是个局域网可达的写盘口子）：id `^[A-Za-z0-9_-]{1,40}$`、只认 `RIFF`、`path.resolve` 后断言仍在该目录内、基目录硬编码不接受前端传入、默认 409 拒绝覆盖（`?overwrite=1` 才覆盖）。**含真人声音 → 不进 git**。实测：穿越 `%2F`/`%5C`/点号/超长全部 400，仓库内外都没长出野文件 |
@@ -370,3 +370,18 @@ Owner 拍板（含当日澄清）：
 **诚实边界**：浏览器采音是全场**唯一不能命令行自证**的环节（本机无 ffmpeg，无头浏览器 `getUserMedia` 能否授权未知）。对策是让它可自证而不是假装测过：`encodeWav` 是纯函数（devtools 喂 `new Int16Array([1,-1,0])` 即可核对头 12 字节），「存为语料」之后同一段字节能在浏览器外用 `curl --data-binary` 复现。人工手测步骤见 `05_TEST_LOG`。
 
 **验收口径要先对齐**：接上耳朵之后 34% CER **会立刻变成体感退化**（型号读法第一次真砸到体验上）。那不是回归，是"耳朵换对了"的证据；救它的是**文本规整**工单。
+
+---
+
+## 十七、ASR 文本规整：型号读法归一（2026-09-09）
+
+| 议题 | 结论 |
+|---|---|
+| 为什么现在做 | 十六把耳朵接上后，`a 杠一百` 第一次真砸到 interpret；CER 34% 的专有名词弱点不能靠热词（SenseVoice 不收） |
+| 落点 | **`POST /api/interpret` 入口**，`normalizeAsrText()` 在 `interpret()` 之前。**不**改 `asr.ts` / 不改 CER hyp —— 评测仍看原始识别 |
+| 算法 | ① 主数据词典反查（产品型号 / 客户编码 / extras 生成口语变体，长表面优先）；② 通用模式兜底（多字母单号 → 单字母型号 → 前导零客户码） |
+| 不误伤 | 「来一百个」保持原样；已是 `A-100` 的句子幂等；前导零（`C001`）不插横杠 |
+| 响应字段 | `utterance` = 规整后（进意图）；若有改动附 `utteranceRaw` / `asrNormalized: true` / `asrReplacements` |
+| 评测金标 | `c07` 期望 product 从 `A一百` 改为 `A-100`（规整后应抽出规范码；旧金标靠空串 `includes` 假阳性凑过） |
+
+**验收**：`npm run smoke:asr-normalize` 全过；`npm run eval:rules` **96.2% / 95.3%**（不劣化）；`eval:asr` 规则档 **78.9%**（不劣化）；`product` 分类 **6/6=100%**（含 `B两百`/`A100`）；API：`给张三来五十个 a 杠一百` → product=`A-100` 消解成功。

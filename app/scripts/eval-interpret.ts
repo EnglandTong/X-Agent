@@ -18,6 +18,7 @@ import { PrismaClient } from '@prisma/client'
 import { compile } from '../src/server/compile'
 import { interpret, hydrateInference, applyListPriceFallback } from '../src/server/agent'
 import { loadSettings, type LlmSettings } from '../src/server/settings'
+import { normalizeAsrText } from '../src/server/asrNormalize'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '..')
@@ -93,7 +94,10 @@ async function runOne(
       ? { ...settings, provider: 'openai' }
       : { ...settings, provider: 'rules', apiKey: '' }
 
-  const result = await interpret(sample.utterance, {
+  // 与 /api/interpret 同路径：先规整再抽槽（干净口吻幂等）
+  const utterance = normalizeAsrText(sample.utterance, { products, customers }).text
+
+  const result = await interpret(utterance, {
     tools,
     schemas,
     ctx: { db: prisma, today },

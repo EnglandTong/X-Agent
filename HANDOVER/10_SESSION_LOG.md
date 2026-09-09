@@ -191,3 +191,16 @@ Owner 的关键话 / 发生的事 → 定论：
 | 工作树剩一行 `app/eval/failures.jsonl` 漂移 | 云端把 quantity 回成 `五十个`（原 `五十`）——**分数中性**：`slotHit` 用双向 `includes`（`eval-interpret.ts:70`），带单位后缀算命中；文件里 `一百个`/`一百件` 早就是同型。**选择提交而非 `checkout --` 回滚**：这是被跟踪的生成物，留着脏会让下轮 `git status` 出现无解释文件；真实结论（云端倾向连单位一起回、规整层要能吃掉后缀）随 commit message 入库 |
 
 **本轮交付**：`src/server/asr.ts`（「耳」，与离线评测共用同一份实现）· `src/ui/voiceRecorder.ts` · `POST /api/asr` + `/api/asr/status` + `/api/asr/warm` + `PUT /api/asr/corpus/:id` · `asrEngine` 设置四处 + 面板单选与「耳朵自检」· `npm run verify:asr`（**39/39 逐字等价 · RTF p50 0.039**）· 四闸门回归全不劣化（typecheck 0 · 96.2%/95.3% · 100%/100% · 97.4%）。
+
+---
+
+## 阶段十一 · ASR 文本规整（2026-09-09）
+
+| 经过 | 结论 |
+|---|---|
+| Owner：「我们继续开发」—— 上一轮 backlog 性价比最高的是文本规整 | 单开工单：落点 `/api/interpret`（决策 #16 已定，#17 落地） |
+| 实现 | `asrNormalize.ts`：词典反查（型号/客户码口语变体）+ 通用模式（`a 杠一百` / `s o 杠…` / `c零零一` / `B两百` / `A100`） |
+| 金标修正 | `c07` 期望 `A一百`→`A-100`；旧金标靠空串 `includes` 假阳性「命中」 |
+| 验收 | `smoke:asr-normalize` 全过 · `eval:rules` **96.2%/95.3%** · `eval:asr` 规则 **78.9%** · API `a 杠一百`→ product A-100 |
+
+**本轮交付**：`src/server/asrNormalize.ts` · interpret 入口接线 · `npm run smoke:asr-normalize` · 决策 #17 · 档案 v1.7。

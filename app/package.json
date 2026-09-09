@@ -21,6 +21,7 @@
     "smoke:delivery": "tsx scripts/smoke-delivery-remaining.ts",
     "smoke:multiline": "tsx scripts/smoke-multiline-reserve.ts",
     "smoke:memory": "tsx scripts/smoke-memory.ts",
+    "smoke:asr-normalize": "tsx scripts/smoke-asr-normalize.ts",
     "say": "tsx scripts/speak.ts",
     "hotwords": "tsx scripts/export-hotwords.ts",
     "asr:cer": "tsx scripts/asr-cer.ts",

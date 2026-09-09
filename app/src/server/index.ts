@@ -28,6 +28,7 @@ import { ping } from './llm'
 import { loadSettings, saveSettings, publicView, type LlmSettings } from './settings'
 import { speak, isTtsSupported } from './speak'
 import { transcribeFromWav, asrStatus, warmAsr, isAsrSupported } from './asr'
+import { normalizeAsrText } from './asrNormalize'
 import {
   recordPanel,
   listPanels,
@@ -435,8 +436,8 @@ app.get<{ Params: { kind: string } }>('/api/entities/:kind', async (req, reply) 
 app.post<{ Body: { utterance?: string; today?: string } }>(
   '/api/interpret',
   async (req, reply) => {
-    const utterance = req.body?.utterance?.trim()
-    if (!utterance) {
+    const utteranceRaw = req.body?.utterance?.trim()
+    if (!utteranceRaw) {
       return reply.code(400).send({ error: 'utterance 不能为空' })
     }
 
@@ -445,6 +446,11 @@ app.post<{ Body: { utterance?: string; today?: string } }>(
       prisma.customer.findMany({ select: { id: true, name: true, code: true } }),
       prisma.product.findMany({ select: { id: true, model: true, name: true } }),
     ])
+
+    // ASR 文本规整（决策 #16）：落在 interpret 入口，不进 asr.ts ——
+    // 浏览器引擎听歪的型号同样要救。规整后的文本才进意图/槽位。
+    const norm = normalizeAsrText(utteranceRaw, { products, customers })
+    const utterance = norm.text
 
     const result = await interpret(utterance, {
       tools,
@@ -487,6 +493,9 @@ app.post<{ Body: { utterance?: string; today?: string } }>(
 
     return {
       utterance,
+      ...(norm.changed
+        ? { utteranceRaw, asrNormalized: true, asrReplacements: norm.replacements }
+        : { asrNormalized: false }),
       ...result,
       slots,
       missing,
