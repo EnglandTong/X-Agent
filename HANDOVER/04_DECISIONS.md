@@ -399,3 +399,17 @@ Owner 拍板（含当日澄清）：
 
 复现：`npm run smoke:memory`（含 v2）· `LOCAL_LLM_*=… SKIP_CLOUD=1 npm run eval:compare` · 画布查库存/信用目视。
 
+---
+
+## 十九、输入侧对外标准：Observation + 适配器（2026-09-09）
+
+| 议题 | 结论 |
+|---|---|
+| 为什么现在写 | Owner：最后都是数据；模型输入应统一；前期只差「怎么辨认/适配」，核心做法要同一 |
+| 落点 | **`app/src/core/`**（`01_OBSERVATION.md` + `observation.ts`），不新建 HANDOVER 13/14 |
+| 内层 | 只吃 `Observation` 辨认后的自然语言 → interpret → resolve → confirm → run |
+| 外层 | `SensoryAdapter`（耳/眼/…）+ `ModelAdapter`（云端/本地/规则）；对接人只实现外层 |
+| 与 #27 关系 | 把 #27 的 Observation 草图落成**类型 + 对外检查清单**；现行耳/嘴实现仍在 `server/`，契约在 `core/` |
+| 本轮不做 | 不重构 asr.ts/llm.ts 去实现接口类（避免顺手重构）；眼（OCR）仍远期 |
+
+复现：`npm run smoke:observation` · `grep -r "from '../server" src/core/` 为空。

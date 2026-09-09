@@ -8,9 +8,11 @@
  *    铁律（T5）：`core/` 不得 import `server/` —— 单向依赖，将来才能整体搬走。
  */
 
+import type { Modality } from './observation'
+
 /** 六态：一次任务只会处于其中一种 */
 export type RunState =
-  /** 收到原始输入（text / audio 等任意 modality 的 Observation） */
+  /** 收到原始输入（任意 modality 的 Observation，见 observation.ts） */
   | 'received'
   /** 已产出动词 + 槽位（可能缺字段，也可能有候选待选） */
   | 'interpreted'
@@ -52,10 +54,10 @@ export interface Run<TPayload = unknown> {
   /** 命中的能力名（= 动词名，如 order.create） */
   capability: string
   state: RunState
-  /** 原始输入（人说的那句话） */
+  /** 原始输入（人说的那句话；= Observation 辨认后的 text） */
   utterance?: string | null
-  /** 输入模态：text 已有 / audio 进行中 / image·touch·thermal 远期（见 04_DECISIONS #27） */
-  modality?: 'text' | 'audio' | 'image' | 'touch' | 'thermal' | 'smell' | string
+  /** 输入模态（与 Observation.modality 对齐） */
+  modality?: Modality
   /** 引擎：规则 or 模型（用于事后分析"这条是谁判的"） */
   engine?: 'rules' | 'llm' | 'pi'
   /** 落库结果或拦截原因 */
