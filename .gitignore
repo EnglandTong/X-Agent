@@ -3,6 +3,7 @@ dist/
 
 # IDE / agent 本地目录（不入库）
 .codebuddy/
+.workbuddy/
 *.db
 *.db-journal
 .DS_Store
