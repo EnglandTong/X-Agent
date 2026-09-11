@@ -2,6 +2,7 @@
  * 种子数据：仅覆盖「销售订单 → 出货」一条线
  * 其中刻意造了两个「张」姓客户，用于验证歧义消解（模型必须弹候选，不自己拍板）
  */
+import '../scripts/bootstrap-env.ts'
 import { PrismaClient } from '@prisma/client'
 
 const prisma = new PrismaClient()

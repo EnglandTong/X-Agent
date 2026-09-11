@@ -266,6 +266,7 @@ export function ConfirmCard({
 
   return (
     <Card
+      data-testid="confirm-card"
       size="small"
       title={
         <Space size={6} wrap>

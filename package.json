@@ -13,7 +13,9 @@
     "setup": "npm run setup -w agent-erp",
     "typecheck": "npm run typecheck -w @x-agent/core && npm run typecheck -w agent-erp",
     "eval": "npm run eval -w agent-erp",
-    "smoke:observation": "npm run smoke:observation -w agent-erp"
+    "smoke:observation": "npm run smoke:observation -w agent-erp",
+    "smoke:canvas": "npm run smoke:canvas -w agent-erp",
+    "download:asr": "npm run download:asr -w agent-erp"
   },
   "engines": {
     "node": ">=20"

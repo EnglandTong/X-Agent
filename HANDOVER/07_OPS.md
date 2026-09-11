@@ -2,6 +2,30 @@
 
 ---
 
+## 〇、Cloud Agent 环境（X-Agent monorepo）
+
+仓库根目录已提交 `.cursor/environment.json`：
+
+| 阶段 | 命令 | 作用 |
+|---|---|---|
+| `install` | `.cursor/scripts/cloud-install.sh` | `npm install` · 复制 `.env` · 同步 Secrets · 下载 ASR 权重 · `setup` · `build` |
+| `start` | `.cursor/scripts/cloud-start.sh` | 同步 Secrets · `prisma generate` · `db push` |
+| `terminals` | `apps/agent-erp` → `npm run serve` | 默认 3001 |
+
+**可选 Secrets**（Dashboard → Environment Secrets）：`LLM_API_KEY`、`LLM_BASE_URL`、`LLM_MODEL` —— install 会写入 `apps/agent-erp/.env.local`。
+
+**云端冒烟**（服务已起或 Playwright 自启）：
+
+```bash
+npm run smoke:canvas      # Playwright：输入 → 确认卡
+npm run smoke:observation
+npm run download:asr      # 单独拉 SenseVoice 权重（install 已含）
+```
+
+`npm run setup` 现已自动读 `apps/agent-erp/.env`（`bootstrap-env.ts`），无需手动 `export DATABASE_URL`。
+
+---
+
 ## 一、两套环境
 
 | | 云端沙箱（当前在跑） | Owner 本地 Windows |

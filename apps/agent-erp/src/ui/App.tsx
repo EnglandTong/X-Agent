@@ -999,6 +999,7 @@ export default function App() {
         </div>
         <Space.Compact style={{ width: '100%' }}>
           <Input
+            data-testid="utterance-input"
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onPressEnter={() => send(input)}
@@ -1020,7 +1021,13 @@ export default function App() {
           {lastRecording && (
             <Button icon={<SaveOutlined />} onClick={saveCorpus} title="把刚才这段真人录音存成语料（进 npm run asr:cer）" />
           )}
-          <Button type="primary" icon={<SendOutlined />} loading={busy} onClick={() => send(input)} />
+          <Button
+            data-testid="send-button"
+            type="primary"
+            icon={<SendOutlined />}
+            loading={busy}
+            onClick={() => send(input)}
+          />
         </Space.Compact>
       </div>
 

@@ -24,12 +24,16 @@
     "smoke:memory": "tsx scripts/smoke-memory.ts",
     "smoke:asr-normalize": "tsx scripts/smoke-asr-normalize.ts",
     "smoke:observation": "tsx scripts/smoke-observation.ts",
+    "smoke:canvas": "playwright test e2e/canvas-smoke.spec.ts",
+    "download:asr": "tsx scripts/download-asr-weights.ts",
+    "sync:secrets": "tsx scripts/sync-cloud-secrets.ts",
     "say": "tsx scripts/speak.ts",
     "hotwords": "tsx scripts/export-hotwords.ts",
     "asr:cer": "tsx scripts/asr-cer.ts",
     "asr:wavs": "tsx scripts/asr-make-wavs.ts",
     "verify:asr": "tsx scripts/verify-asr-e2e.ts",
-    "setup": "prisma generate && prisma db push --skip-generate && tsx prisma/seed.ts"
+    "setup": "prisma generate && prisma db push --skip-generate && tsx prisma/seed.ts",
+    "postinstall": "prisma generate --schema=prisma/schema.prisma || true"
   },
   "dependencies": {
     "@x-agent/core": "*",
@@ -53,6 +57,7 @@
     "prisma": "^5.22.0",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11"
+    "vite": "^5.4.11",
+    "@playwright/test": "^1.49.1"
   }
 }

@@ -1,0 +1,11 @@
+{
+  "name": "X-Agent",
+  "install": "bash .cursor/scripts/cloud-install.sh",
+  "start": "bash .cursor/scripts/cloud-start.sh",
+  "terminals": [
+    {
+      "name": "agent-erp",
+      "command": "cd apps/agent-erp && npm run serve"
+    }
+  ]
+}

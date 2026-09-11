@@ -1,3 +1,5 @@
+import '../../scripts/bootstrap-env.ts'
+
 /**
  * AGT-ERP · W0 服务入口
  *
