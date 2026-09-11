@@ -1,9 +1,13 @@
 # 00 · 从这里开始（给接手的 AI）
 
+> **范围**：本 `HANDOVER/` 只描述 **支 · Agent_ERP**（`apps/agent-erp/`）。  
+> **主 · X-Agent** 框架见 [`packages/core/README.md`](../packages/core/README.md) —— 不要从本目录推断协议边界。
+
 > 这份档案是**自包含**的。你不需要看任何历史聊天记录 —— 读完 `00 → 01 → 02 → 03 → 04`，
 > 你就能接着往下做。Owner 会在新会话里对你说「去仓库把档案取出来读」，读的就是这里。
 
-**项目代号**：AGT-ERP · Agent 驱动的 ERP（PoC）
+**项目代号**：Agent_ERP（支）· 仓库名 **X-Agent**（主仓 monorepo）
+**应用路径**：`apps/agent-erp/`（原 `app/`）
 **档案版本**：v1.8 · 2026-09-09（13 动词 · ASR 规整 · **记忆 v2** · **D9 本地 0.6B 未达标** · **UI rows/credit 收尾** · 本轮见 `10_SESSION_LOG`）
 **代码状态**：**13 动词**（含 `lexicon.remember`）；云端 LLM 已通（模型 100%/100%）；**T1–T5 派工单全部完成**；**本地 SenseVoice「耳」已接进画布**（`POST /api/asr`，默认引擎仍是浏览器 Web Speech，设置面板可切）；**TTS 已接进画布**（说+听闭环）；**ASR 文本规整**已接进 `/api/interpret`（`a 杠一百`→`A-100`，两只耳朵都受益）；**CER 实测已有数字**（合成语音 34.02%，且被测引擎 = 在用引擎）；记忆网络 v2 已落地（升格提示 + 共现 API）；**G1/G2 已关闭，G3 已缓解**。
 
@@ -11,7 +15,7 @@
 
 | 优先级 | 来源 | 用途 |
 |---|---|---|
-| **1（唯一活源）** | GitHub `main` 工作树 + 本 `HANDOVER/` | 接手、改代码、改档案都只认这里 |
+| **1（唯一活源）** | GitHub `EnglandTong/X-Agent` · `main` + 本 `HANDOVER/`（支）/ `packages/core/`（主） | 接手、改代码、改档案都只认这里 |
 | 2 | `Agent_ERP.bundle` | **只作历史备份**（早期 5 次提交）；clone 后若与 `main` 冲突，以 `main` 为准 |
 | 3 | `agt-erp-src.zip` | **只作网盘快照**；改完代码/档案后必须按 `07_OPS.md` 重打，否则视为过期 |
 

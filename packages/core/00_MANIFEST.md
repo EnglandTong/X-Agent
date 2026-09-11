@@ -1,7 +1,8 @@
 # 00 · 协议一页纸（x-agent）
 
-> 这是 **X-Agent** 的主干协议包（`@x-agent/core`）。
-> 应用（如 `apps/agent-erp`）通过 workspace 依赖本包；守住下面那条铁律即可独立演进。
+> 这是 **X-Agent 主（框架）** 的协议包（`@x-agent/core`）。  
+> **治理**：本目录与 `packages/core/*.md` 只描述主；**不**写 ERP 业务。支（`apps/agent-erp`）档案在 `HANDOVER/`。  
+> 应用通过 workspace 依赖本包；守住下面那条铁律即可独立演进。
 >
 > **输入侧标准**见同目录 [`01_OBSERVATION.md`](./01_OBSERVATION.md)（Observation + 适配器）。  
 > 本文件管**能力**（做什么）；01 管**输入**（怎么进来）。两份合起来才是完整对外契约。

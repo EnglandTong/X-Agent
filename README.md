@@ -4,13 +4,18 @@
 
 This monorepo contains:
 
-| Path | Role |
-|---|---|
-| [`packages/core/`](./packages/core/) | **X-Agent framework** — `x-agent` manifest, Observation, Run lifecycle, capability registry (`@x-agent/core`) |
-| [`apps/agent-erp/`](./apps/agent-erp/) | **Reference app** — sales order → shipment PoC that validates X-Agent (formerly the whole repo as `Agent_ERP`) |
-| [`HANDOVER/`](./HANDOVER/00_START_HERE.md) | ERP PoC handover docs (Chinese, single source of truth for the reference app) |
+| 主 / 支 | Path | Role | Docs |
+|---|---|---|---|
+| **主** | [`packages/core/`](./packages/core/) | **X-Agent framework** — `@x-agent/core` | [`packages/core/*.md`](./packages/core/README.md) |
+| **支** | [`apps/agent-erp/`](./apps/agent-erp/) | **Agent_ERP** reference app (order → shipment PoC) | [`HANDOVER/`](./HANDOVER/README.md) |
 
-> **Naming**: **X-Agent** = product / architecture. **`x-agent`** = JSON Schema extension field (lowercase, unchanged).
+**Governance (2026-09-11)** — same `main` branch, split by directory + docs, not by Git branch:
+
+- Change **framework / protocol** → `packages/core/` + root `README.md`; do **not** put framework spec in `HANDOVER/`.
+- Change **ERP app / verbs / eval** → `apps/agent-erp/` + `HANDOVER/`.
+
+> **Naming**: **X-Agent** = product / architecture. **`x-agent`** = JSON Schema extension field (lowercase, unchanged).  
+> GitHub: [`EnglandTong/X-Agent`](https://github.com/EnglandTong/X-Agent) (renamed from `Agent_ERP`).
 
 ## Reference app demo
 
@@ -51,6 +56,6 @@ Fill the model key: in-app gear icon → cloud model → paste key → save & te
 | [03_VERBS.md](./HANDOVER/03_VERBS.md) | Verb specs, business rules, change-order mechanism |
 | [12_HANDOFF.md](./HANDOVER/12_HANDOFF.md) | Dispatch list, red lines, parallel discipline |
 
-## Repository rename
+## Repository
 
-GitHub repo: rename `EnglandTong/Agent_ERP` → **`EnglandTong/X-Agent`** in repository Settings (GitHub keeps redirects from the old URL).
+GitHub: **`EnglandTong/X-Agent`** (renamed from `Agent_ERP`; old URLs redirect).
