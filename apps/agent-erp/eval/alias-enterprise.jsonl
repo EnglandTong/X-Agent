@@ -1,0 +1,6 @@
+{"id":"L1","kind":"lookup","alias":"张总","entityKind":"customer","expectValueKind":"customer","mustResolve":true}
+{"id":"L2","kind":"lookup","alias":"B型","entityKind":"product","expectValueKind":"product","mustResolve":true}
+{"id":"L3","kind":"lookup","alias":"华东","entityKind":"warehouse","expectEntityId":"华东仓","mustResolve":true}
+{"id":"L4","kind":"lookup","alias":"老李","entityKind":"customer","mustResolve":false}
+{"id":"I1","kind":"interpret","utterance":"给张总来10个A-100","expectVerb":"order.create","expectSlot":"customer","expectValueKind":"customer","expectAlias":"张总","mustResolve":true}
+{"id":"I2","kind":"interpret","utterance":"给老李来10个A-100","expectVerb":"order.create","expectSlot":"customer","expectAlias":"老李","mustResolve":false,"note":"candidate 未批准不得命中企业别名"}

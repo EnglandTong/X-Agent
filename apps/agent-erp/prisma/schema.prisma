@@ -134,6 +134,32 @@ model PersonalLexeme {
   @@index([userId, kind, verb])
 }
 
+/// 企业级标准别名 —— 公司维护；须审核后 active（决策 #30）
+model EnterpriseAlias {
+  id         String    @id @default(cuid())
+  /// customer | product | warehouse
+  entityKind String
+  /// Customer.id / Product.id / 或仓库名（华东仓）
+  entityId   String
+  aliasNorm  String
+  alias      String
+  /// official | invoice | import | ocr_suggest | manual
+  source     String    @default("import")
+  /// candidate | active | rejected | retired
+  status     String    @default("candidate")
+  approvedBy String?
+  approvedAt DateTime?
+  note       String?
+  hits       Int       @default(0)
+  lastUsedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@unique([entityKind, aliasNorm])
+  @@index([entityKind, status])
+  @@index([entityId])
+}
+
 /// 个人用语的「证据」—— 每观察到一次「说法 → 目标」记一行
 ///
 /// 为什么单独一张表：决策 #28 要求说法先进**候选区**，稳定复现才升格成记忆卡。

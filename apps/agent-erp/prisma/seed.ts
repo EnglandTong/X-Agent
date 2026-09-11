@@ -4,6 +4,7 @@
  */
 import '../scripts/bootstrap-env.ts'
 import { PrismaClient } from '@prisma/client'
+import { upsertEnterpriseAlias } from '../src/server/enterpriseAlias'
 
 const prisma = new PrismaClient()
 
@@ -21,6 +22,7 @@ async function main() {
   await prisma.orderItem.deleteMany()
   await prisma.order.deleteMany()
   await prisma.inventory.deleteMany()
+  await prisma.enterpriseAlias.deleteMany()
   await prisma.product.deleteMany()
   await prisma.customer.deleteMany()
 
@@ -85,12 +87,47 @@ async function main() {
     })
   }
 
-  const [cc, pc, oc] = await Promise.all([
+  // --- 企业别名（B 层）—— active 可消解；candidate 须人工批准后才生效
+  await upsertEnterpriseAlias(prisma, {
+    entityKind: 'customer',
+    entityId: customers[0].id,
+    alias: '张总',
+    source: 'official',
+    status: 'active',
+    approvedBy: 'seed',
+  })
+  await upsertEnterpriseAlias(prisma, {
+    entityKind: 'product',
+    entityId: products[1].id,
+    alias: 'B型',
+    source: 'official',
+    status: 'active',
+    approvedBy: 'seed',
+  })
+  await upsertEnterpriseAlias(prisma, {
+    entityKind: 'warehouse',
+    entityId: '华东仓',
+    alias: '华东',
+    source: 'official',
+    status: 'active',
+    approvedBy: 'seed',
+  })
+  // 候选：未批准前 resolve 不得命中
+  await upsertEnterpriseAlias(prisma, {
+    entityKind: 'customer',
+    entityId: customers[2].id,
+    alias: '老李',
+    source: 'import',
+    status: 'candidate',
+  })
+
+  const [cc, pc, oc, ac] = await Promise.all([
     prisma.customer.count(),
     prisma.product.count(),
     prisma.order.count(),
+    prisma.enterpriseAlias.count(),
   ])
-  console.log(`✅ 种子完成：客户 ${cc} · 产品 ${pc} · 订单 ${oc}`)
+  console.log(`✅ 种子完成：客户 ${cc} · 产品 ${pc} · 订单 ${oc} · 企业别名 ${ac}`)
 }
 
 main()
