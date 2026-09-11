@@ -38,6 +38,7 @@
 | 27 | **仓的三层定位**（2026-09-07 定；**2026-09-11 更名落地**） | **主 = X-Agent**（`packages/core/`）；**支 = Agent_ERP**（`apps/agent-erp/`）。同仓 monorepo、同 `main`，**不用 Git 分支硬拆**；叙事用目录 + 文档分工 | 现在就建独立第二 repo / Git 分支把 ERP 与框架永久分叉 |
 | **29** | **主支治理**（2026-09-11 Owner 定） | **方案 A**：`main` 含 `packages/core` + `apps/agent-erp`；**HANDOVER 只写支**；**`packages/core` 只写主**；GitHub 仓库名 **X-Agent** | 用 `agent-erp` 长期分支隔离（合并成本高，框架未稳定前不做） |
 | **28** | **记忆的写入策略**（2026-09-07 定） | 个人用语表加**候选区**：说法先进 `candidate`（不参与消解），**≥2 次且跨 ≥2 天**稳定指向同一目标才升 `active`；节点网络从 `Panel.entities` **派生共现表**，不新建图存储 | 一次点击即入库（口误会污染词表）/ 引入图数据库 / 接 Obsidian vault / 向量检索 |
+| **30** | **接地层 A+B（2026-09-11 Owner 定 · 选 C）** | **个人用语（A）** + **企业标准别名（B）** 双层；B 须 **人工审核** 后 `active`；消解顺序：A → B → code 精确 → fuzzy → 确定性解析；耳/眼只产 text，不接开放 RAG/世界模型 | 只用向量库猜实体 / OCR 自动写 active 别名 / 大模型直接吐 customerId |
 
 ---
 
