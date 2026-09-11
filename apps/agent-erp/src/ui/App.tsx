@@ -7,12 +7,13 @@ import {
   AudioOutlined,
   PlusOutlined,
   SaveOutlined,
+  PictureOutlined,
 } from '@ant-design/icons'
 import { ConfirmCard } from './ConfirmCard'
 import { PanelCard } from './PanelCard'
 import { SettingsModal } from './SettingsModal'
 import { startRecording, type RecordHandle, type Recording } from './voiceRecorder'
-import type { Panel, SlotResult, VerbResult } from '../types'
+import type { ContextSummary, Panel, SlotResult, VerbResult } from '../types'
 
 /** 活动格：还没提交的那一格，永远最多一个（且只属于当前工作页） */
 interface Draft {
@@ -29,6 +30,9 @@ interface Draft {
   revisesSeq?: number
   engine?: string
   llm?: { ms: number; error?: string; raw?: string }
+  contextSummary?: ContextSummary
+  contextApplied?: { kind: string; customer?: string }
+  correlationId?: string | null
 }
 
 interface WorkSession {
@@ -135,6 +139,7 @@ export default function App() {
   const [lastRecording, setLastRecording] = useState<{ wav: ArrayBuffer; id: string } | null>(null)
   /** 录音句柄放 ref：它变化不该触发重渲染 */
   const recorderRef = useRef<RecordHandle | null>(null)
+  const ocrInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     sessionIdRef.current = sessionId
@@ -220,6 +225,12 @@ export default function App() {
   }, [sessionId])
 
   const current = [...panels].reverse().find((p) => p.correlationId)
+  const draftCorrelation =
+    draft?.correlationId ??
+    (draft?.slots?.find((s) => s.slot === 'customer' && s.value)
+      ? `CUS:${draft.slots.find((s) => s.slot === 'customer')!.value}`
+      : null)
+  const displayCorrelation = draftCorrelation ?? current?.correlationId ?? null
 
   /** 同一链路继续留下；「新开一张业务单」且当前页已有内容 → 新工作页（旧页变 Tab） */
   function shouldOpenNewWork(
@@ -371,7 +382,7 @@ export default function App() {
       const j = await r.json()
       if (j.ok && j.text) {
         setInput(j.text)
-        send(j.text)
+        send(j.text, 'audio')
       } else if (j.ok) {
         message.warning('听到了，但没识别出字')
       } else {
@@ -404,9 +415,74 @@ export default function App() {
     }
   }
 
+  // ---------------------------------------------------------------- OCR 上传订单截图
+
+  async function uploadOrderImage(file: File) {
+    if (busy) return
+    setBusy(true)
+    try {
+      const buf = await file.arrayBuffer()
+      const r = await fetch(
+        `/api/ocr?filename=${encodeURIComponent(file.name)}&sessionId=${encodeURIComponent(sessionIdRef.current)}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/octet-stream' },
+          body: buf,
+        }
+      ).then((x) => x.json())
+
+      if (!r.ok) {
+        message.warning(r.reason ?? 'OCR 识别失败')
+        return
+      }
+      if (r.aliasSuggestions?.length) {
+        message.info(
+          `已记录 ${r.aliasSuggestions.length} 条 OCR 别名建议（候选，须审核后才生效）`
+        )
+      }
+
+      const interp = r.interpret
+      const text = r.utterance || r.text || ''
+      if (!interp || !text) {
+        message.warning('未能从截图解析出可建单的信息')
+        return
+      }
+
+      setInput(text)
+      if (interp.ready && interp.risk === 'read') {
+        await execute(interp.verb, text, interp.slots)
+        return
+      }
+
+      const schema = await fetch(`/api/schema/${interp.verb}`).then((x) => x.json())
+      setDraft({
+        verb: interp.verb,
+        title: interp.verbTitle,
+        schema,
+        slots: interp.slots,
+        question: interp.question,
+        risk: interp.risk,
+        utterance: text,
+        engine: interp.engine,
+        llm: interp.llm,
+        contextSummary: interp.contextSummary,
+        contextApplied: interp.contextApplied,
+        correlationId: r.correlationId ?? null,
+      })
+      message.success('已从订单截图预填确认卡')
+      say(interp.question)
+      scrollDown()
+    } catch {
+      message.error('上传订单截图失败')
+    } finally {
+      setBusy(false)
+      if (ocrInputRef.current) ocrInputRef.current.value = ''
+    }
+  }
+
   // ---------------------------------------------------------------- 发送
 
-  async function send(text: string) {
+  async function send(text: string, modality: 'text' | 'audio' = 'text') {
     if (!text.trim() || busy) return
     setBusy(true)
     setInput('')
@@ -414,7 +490,11 @@ export default function App() {
       const interp = await fetch('/api/interpret', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ utterance: text }),
+        body: JSON.stringify({
+          utterance: text,
+          sessionId: sessionIdRef.current,
+          modality,
+        }),
       }).then((r) => r.json())
 
       if (interp.error) {
@@ -434,6 +514,7 @@ export default function App() {
       }
 
       const schema = await fetch(`/api/schema/${interp.verb}`).then((r) => r.json())
+      const cust = interp.slots?.find((s: SlotResult) => s.slot === 'customer' && s.value)
       setDraft({
         verb: interp.verb,
         title: interp.verbTitle,
@@ -444,6 +525,9 @@ export default function App() {
         utterance: text,
         engine: interp.engine,
         llm: interp.llm,
+        contextSummary: interp.contextSummary,
+        contextApplied: interp.contextApplied,
+        correlationId: cust ? `CUS:${cust.value}` : null,
       })
       // 还没问完 → 直接念出来（语音场景下，人不必盯着屏幕看追问）
       say(interp.question)
@@ -728,9 +812,9 @@ export default function App() {
       >
         <span style={{ color: '#8c8c8c' }}>
           当前对象{' '}
-          {current ? (
+          {displayCorrelation ? (
             <b style={{ color: '#1677ff' }}>
-              {String(current.correlationId).replace(/^(ORD|CUS):/, '')}
+              {String(displayCorrelation).replace(/^(ORD|CUS):/, '')}
             </b>
           ) : (
             '—'
@@ -952,6 +1036,8 @@ export default function App() {
             risk={draft.risk}
             question={draft.question}
             utterance={draft.utterance}
+            contextSummary={draft.contextSummary}
+            contextApplied={draft.contextApplied}
             revisesSeq={draft.revisesSeq}
             submitLabel={
               draft.originNo ? '提交变更单' : draft.orderId ? '提交修订' : undefined
@@ -1006,6 +1092,22 @@ export default function App() {
             placeholder="同一链路继续说；新开一张单会自动新开工作页"
             disabled={busy}
             prefix={<span style={{ color: '#52c41a', fontWeight: 700 }}>›</span>}
+          />
+          <input
+            ref={ocrInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) void uploadOrderImage(f)
+            }}
+          />
+          <Button
+            icon={<PictureOutlined />}
+            disabled={busy}
+            onClick={() => ocrInputRef.current?.click()}
+            title="上传微信订单截图（OCR → 确认卡预填）"
           />
           <Button
             icon={<AudioOutlined />}

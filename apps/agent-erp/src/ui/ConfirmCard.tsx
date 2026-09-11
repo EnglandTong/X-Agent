@@ -5,7 +5,7 @@ import { FormLayout } from '@formily/antd-v5'
 import { Card, Tag, Button, Space, Divider, Tooltip, message } from 'antd'
 import { BookOutlined, CheckOutlined } from '@ant-design/icons'
 import { SchemaField } from './formily'
-import type { SlotResult } from '../types'
+import type { ContextSummary, SlotResult } from '../types'
 
 interface Props {
   schema: any
@@ -15,6 +15,9 @@ interface Props {
   risk: 'read' | 'write'
   question?: string
   utterance?: string
+  /** G3：只读业务摘要（信用/库存） */
+  contextSummary?: ContextSummary
+  contextApplied?: { kind: string; customer?: string }
   /** 非空表示这是从 #N 修订而来的新格 */
   revisesSeq?: number
   /** 覆盖默认提交文案（变更单 / 修订） */
@@ -132,6 +135,8 @@ export function ConfirmCard({
   risk,
   question,
   utterance,
+  contextSummary,
+  contextApplied,
   revisesSeq,
   submitLabel,
   submitting,
@@ -317,6 +322,30 @@ export function ConfirmCard({
       }
       style={{ marginTop: 12 }}
     >
+      {(contextSummary?.lines?.length || contextApplied?.customer) && (
+        <div
+          style={{
+            background: '#f6ffed',
+            border: '1px solid #b7eb8f',
+            borderRadius: 4,
+            padding: '6px 10px',
+            marginBottom: 10,
+            fontSize: 12,
+            color: '#389e0d',
+          }}
+        >
+          {contextApplied?.customer && (
+            <div style={{ marginBottom: 4 }}>
+              上下文：沿用「{contextApplied.customer}」（{contextApplied.kind === 'sensory_ref' ? '上一张图/语音' : '会话'})
+            </div>
+          )}
+          {contextSummary?.lines?.map((line) => (
+            <div key={line.source} style={{ color: '#595959' }}>
+              {line.text}
+            </div>
+          ))}
+        </div>
+      )}
       {question && (
         <div
           style={{

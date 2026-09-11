@@ -16,10 +16,11 @@ const OUT = join(OUT_DIR, 'hotwords.txt')
 
 async function main() {
   const db = new PrismaClient()
-  const [customers, products, warehouses] = await Promise.all([
+  const [customers, products, warehouses, aliases] = await Promise.all([
     db.customer.findMany({ select: { name: true, code: true } }),
     db.product.findMany({ select: { model: true, name: true } }),
     db.inventory.findMany({ distinct: ['warehouse'], select: { warehouse: true } }),
+    db.enterpriseAlias.findMany({ where: { status: 'active' }, select: { alias: true } }),
   ])
 
   const words = new Set<string>()
@@ -33,6 +34,9 @@ async function main() {
   }
   for (const w of warehouses) {
     if (w.warehouse?.trim()) words.add(w.warehouse.trim())
+  }
+  for (const a of aliases) {
+    if (a.alias?.trim()) words.add(a.alias.trim())
   }
 
   // 业务高频口语（同音/别称可后续扩）

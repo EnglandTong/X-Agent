@@ -17,6 +17,16 @@ export interface SlotResult {
   note?: string
 }
 
+export interface ContextSummaryLine {
+  kind: 'credit' | 'inventory'
+  text: string
+  source: string
+}
+
+export interface ContextSummary {
+  lines: ContextSummaryLine[]
+}
+
 export interface Interpretation {
   utterance: string
   verb: string
@@ -31,6 +41,8 @@ export interface Interpretation {
   /** 抽取引擎：rules = 规则，llm = 模型 */
   engine?: 'rules' | 'llm'
   llm?: { ms: number; error?: string; raw?: string }
+  contextSummary?: ContextSummary
+  contextApplied?: { kind: string; customer?: string }
 }
 
 export interface VerbIssue {

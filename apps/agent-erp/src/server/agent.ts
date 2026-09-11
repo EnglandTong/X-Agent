@@ -105,6 +105,27 @@ function detectVerb(utterance: string, available: string[]): { verb: string; con
   if (/(确认出货|出货确认|确认\s*DN|DN[-\s]?\d)/i.test(s) && available.includes('delivery.confirm')) {
     return { verb: 'delivery.confirm', confidence: 0.9 }
   }
+  // 已出货订单查询 —— 须在 delivery.query 之前（「查一下已出货的订单」）
+  if (
+    /查.{0,10}(已出货|已发货|部分出货).{0,10}(订单|单)|查.{0,8}订单.{0,8}(已出货|已发货)/.test(s) &&
+    available.includes('order.query')
+  ) {
+    return { verb: 'order.query', confidence: 0.88 }
+  }
+  // 口语出货（G1-2）—— 在通用建单之前
+  if (
+    available.includes('delivery.create') &&
+    !/确认出货|查/.test(s) &&
+    (/再出\s*[零一二两三四五六七八九十百千万\d]+/.test(s) ||
+      /从.{0,8}仓出/.test(s) ||
+      /订单\s*SO[-\s]?\d{4}[-\s]?\d{3,5}\s*出/i.test(s) ||
+      /SO[-\s]?\d{4}[-\s]?\d{3,5}\s*出/i.test(s) ||
+      /.的单.{0,20}出货/.test(s) ||
+      /(同一个单|那单|这单).{0,16}出(?!货单)/.test(s) ||
+      (/出货/.test(s) && !/出货单|出货记录/.test(s) && /的单|订单|SO|那单|这单|\d{3,5}/i.test(s)))
+  ) {
+    return { verb: 'delivery.create', confidence: 0.88 }
+  }
   if (/(做出货|开出货|生成出货|出货单)/.test(s) && !/确认出货|查/.test(s) && available.includes('delivery.create')) {
     return { verb: 'delivery.create', confidence: 0.9 }
   }
@@ -120,7 +141,10 @@ function detectVerb(utterance: string, available: string[]): { verb: string; con
   if (/(预留)/.test(s) && !/释放|取消预留/.test(s) && available.includes('inventory.reserve')) {
     return { verb: 'inventory.reserve', confidence: 0.88 }
   }
-  if (/(库存)/.test(s) && available.includes('inventory.query')) {
+  if (
+    (/(库存|还有多少|剩多少|剩余多少)/.test(s) || (/多少/.test(s) && /仓/.test(s))) &&
+    available.includes('inventory.query')
+  ) {
     return { verb: 'inventory.query', confidence: 0.88 }
   }
   if (/(信用|额度).*(查|看|检查|够不够)|查.*(信用|额度)/.test(s) && available.includes('credit.check')) {
@@ -137,6 +161,10 @@ function detectVerb(utterance: string, available: string[]): { verb: string; con
   }
   if (/(变更|改成|开变更|改数量)/.test(s) && available.includes('order.create')) {
     return { verb: 'order.create', confidence: 0.88 }
+  }
+  // 「张三的单发华东仓」—— 建单 + 仓库（口语 omit 产品/数量）
+  if (/.的单\s*发.{0,6}仓/.test(s) && available.includes('order.create')) {
+    return { verb: 'order.create', confidence: 0.82 }
   }
 
   const createHit = CREATE_SIGNALS.filter((w) => s.includes(w)).length
@@ -173,7 +201,7 @@ function detectVerb(utterance: string, available: string[]): { verb: string; con
     return { verb: pickAvailable(available, ['order.query'], 'order.query'), confidence: 0.55 }
   }
 
-  return { verb: available[0] ?? 'order.query', confidence: 0.3 }
+  return { verb: pickAvailable(available, ['order.query'], 'order.query'), confidence: 0.3 }
 }
 
 function dictishCustomer(s: string) {
@@ -402,12 +430,20 @@ function extractSlotsRules(
     if (after && !/SO|DN|\d{4}/i.test(after[1])) slots.reason = after[1].trim()
   }
 
-  // 信用金额
-  const amountMatch = utterance.match(/(?:金额|信用|额度|下)\s*(?:够不够|检查)?\s*([零一二两三四五六七八九十百千万\d]+(?:\.\d+)?)\s*(?:元|块)?/)
+  // 信用金额（「下周五」的「下」不能当金额前缀）
+  const amountMatch = utterance.match(
+    /(?:金额|信用|额度)\s*(?:够不够|检查)?\s*([零一二两三四五六七八九十百千万\d]+(?:\.\d+)?)\s*(?:元|块)?/
+  )
   if (amountMatch) slots.amount = amountMatch[1]
   else {
-    const amt2 = utterance.match(/([零一二两三四五六七八九十百千万\d]+(?:\.\d+)?)\s*(?:元|块钱?)/)
-    if (amt2 && /信用|额度/.test(utterance)) slots.amount = amt2[1]
+    const amtDown = utterance.match(
+      /下(?![周星期礼拜])\s*([零一二两三四五六七八九十百千万\d]+(?:\.\d+)?)\s*(?:元|块|够不够)?/
+    )
+    if (amtDown && /信用|额度|够不够/.test(utterance)) slots.amount = amtDown[1]
+    else {
+      const amt2 = utterance.match(/([零一二两三四五六七八九十百千万\d]+(?:\.\d+)?)\s*(?:元|块钱?)/)
+      if (amt2 && /信用|额度/.test(utterance)) slots.amount = amt2[1]
+    }
   }
 
   // 原单号 —— 变更场景的串联关键词
@@ -457,6 +493,8 @@ export interface InterpretOptions {
   llm?: LlmSettings | null
   /** 「今天」——相对时间解析的基准 */
   today?: Date
+  /** G3：感官焦点注入（如「就按上一张图」→ 客户） */
+  slotInject?: Record<string, string>
 }
 
 const EMPTY_DICT: ExtractDict = { customers: [], products: [] }
@@ -465,7 +503,7 @@ export async function interpret(
   utterance: string,
   opts: InterpretOptions
 ): Promise<Interpretation> {
-  const { tools, schemas, ctx, dict = EMPTY_DICT, llm = null, today } = opts
+  const { tools, schemas, ctx, dict = EMPTY_DICT, llm = null, today, slotInject } = opts
   const available = [...tools.keys()]
 
   // --- 0. 个人用语表：动词前置闸门（插入点 A）
@@ -492,7 +530,12 @@ export async function interpret(
 
   // --- 2. 槽位抽取：模型优先，规则兜底
   const ruleSlots = extractSlotsRules(utterance, dict)
-  let rawSlots = ruleSlots
+  let rawSlots = { ...ruleSlots }
+  if (slotInject) {
+    for (const [k, v] of Object.entries(slotInject)) {
+      if (rawSlots[k] === undefined && v) rawSlots[k] = v
+    }
+  }
   let engine: 'rules' | 'llm' | 'pi' = verbFromLexicon ? 'rules' : 'rules'
   let llmTrace: Interpretation['llm']
 

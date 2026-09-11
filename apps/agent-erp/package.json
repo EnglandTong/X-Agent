@@ -15,6 +15,8 @@
     "eval:rules": "tsx scripts/eval-interpret.ts --engine=rules",
     "eval:lexicon": "tsx scripts/eval-lexicon.ts",
     "eval:enterprise": "tsx scripts/eval-enterprise-alias.ts",
+    "eval:ocr": "tsx scripts/eval-ocr.ts",
+    "eval:context": "tsx scripts/eval-context.ts",
     "eval:compare": "tsx scripts/eval-compare-models.ts",
     "eval:asr": "tsx scripts/eval-asr-utterances.ts",
     "trial:10": "tsx scripts/trial-10-utterances.ts",
@@ -25,6 +27,8 @@
     "smoke:memory": "tsx scripts/smoke-memory.ts",
     "smoke:asr-normalize": "tsx scripts/smoke-asr-normalize.ts",
     "smoke:observation": "tsx scripts/smoke-observation.ts",
+    "smoke:ocr": "tsx scripts/smoke-ocr.ts",
+    "smoke:context": "tsx scripts/smoke-context.ts",
     "smoke:canvas": "playwright test e2e/canvas-smoke.spec.ts",
     "download:asr": "tsx scripts/download-asr-weights.ts",
     "sync:secrets": "tsx scripts/sync-cloud-secrets.ts",
@@ -38,20 +42,22 @@
     "postinstall": "prisma generate --schema=prisma/schema.prisma || true"
   },
   "dependencies": {
-    "@x-agent/core": "*",
     "@ant-design/icons": "^5.5.1",
     "@fastify/static": "^8.3.0",
     "@formily/antd-v5": "^1.1.2",
     "@formily/core": "^2.3.7",
     "@formily/react": "^2.3.7",
     "@prisma/client": "^5.22.0",
+    "@x-agent/core": "*",
     "antd": "^5.22.0",
     "fastify": "^5.1.0",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
-    "sherpa-onnx-node": "^1.13.7"
+    "sherpa-onnx-node": "^1.13.7",
+    "tesseract.js": "^5.1.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.1",
     "@types/node": "^22.9.0",
     "@types/react": "^18.3.12",
     "@types/react-dom": "^18.3.1",
@@ -59,7 +65,6 @@
     "prisma": "^5.22.0",
     "tsx": "^4.19.2",
     "typescript": "^5.6.3",
-    "vite": "^5.4.11",
-    "@playwright/test": "^1.49.1"
+    "vite": "^5.4.11"
   }
 }

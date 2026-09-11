@@ -1,0 +1,10 @@
+{"id":"ocr-01","file":"sample-01.png","expectUtterance":"给张三公司来50个A-100","expectVerb":"order.create","expectCustomer":"张三"}
+{"id":"ocr-02","file":"sample-02.png","expectUtterance":"给李四来80个B-200","expectVerb":"order.create","expectCustomer":"李四"}
+{"id":"ocr-03","file":"sample-03.png","expectUtterance":"给王五来30个C-300","expectVerb":"order.create","expectCustomer":"王五"}
+{"id":"ocr-04","file":"sample-04.png","expectUtterance":"订单SO-2026-1002出20个","expectVerb":"delivery.create"}
+{"id":"ocr-05","file":"sample-05.png","expectUtterance":"给张三来100个A-100，华东仓","expectVerb":"order.create"}
+{"id":"ocr-06","file":"sample-06.png","expectUtterance":"给张伟来40个A-100","expectVerb":"order.create","expectCustomer":"张伟"}
+{"id":"ocr-07","file":"sample-07.png","expectUtterance":"给李四来60个B-200","expectVerb":"order.create"}
+{"id":"ocr-08","file":"sample-08.png","expectUtterance":"给张三来25个C-300","expectVerb":"order.create"}
+{"id":"ocr-09","file":"sample-09.png","expectUtterance":"给王五来15个A-100","expectVerb":"order.create"}
+{"id":"ocr-10","file":"sample-10.png","expectUtterance":"给李四来200个A-100","expectVerb":"order.create"}
