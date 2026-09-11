@@ -13,6 +13,8 @@ import '../../scripts/bootstrap-env.ts'
  *   POST /api/verbs/:name/run    执行动词（领域层）
  *   POST /api/asr                一段 16k WAV 原始字节 → 文本（「耳」，本地 SenseVoice）
  *   GET  /api/asr/status         耳朵状态（是否支持 / 权重在不在 / 模型加载态）
+ *   POST /api/ocr                图片原始字节 → 文本（「眼」，微信订单截图）
+ *   POST /api/ocr/text           OCR 文本直传（评测 / 旁车）
  *   GET  /api/memory/cooccur     记忆网络共现边（从 Panel.entities 派生）
  *   GET  /api/entities/:kind     实体选项（供表单下拉框异步加载）
  */
@@ -32,6 +34,9 @@ import { loadSettings, saveSettings, publicView, type LlmSettings } from './sett
 import { speak, isTtsSupported } from './speak'
 import { transcribeFromWav, asrStatus, warmAsr, isAsrSupported } from './asr'
 import { normalizeAsrText } from './asrNormalize'
+import { recognizeImage, ocrStatus } from './ocr'
+import { parseWechatOrderText, wechatOrderToUtterance } from './ocrWechat'
+import { recordOcrAliasCandidates } from './ocrSuggest'
 import {
   recordPanel,
   listPanels,
@@ -253,6 +258,100 @@ app.get('/api/asr/status', async () => asrStatus())
  * 存在的意义：装完 228MB 权重后不必重启服务，设置面板点一下即可。
  */
 app.post('/api/asr/warm', async () => warmAsr())
+
+// ---------------------------------------------------------------- 「眼」· OCR（微信订单截图）
+
+const OCR_SAMPLES_DIR = join(ROOT, 'eval', 'ocr-samples')
+
+/** GET /api/ocr/status */
+app.get('/api/ocr/status', async () => ocrStatus())
+
+/**
+ * POST /api/ocr —— 图片原始字节 → Observation.text → 微信订单解析 → interpret
+ * Content-Type: application/octet-stream
+ * Query: filename=sample-01.png（可选，用于旁车 .ocr.txt）
+ */
+app.post<{ Querystring: { filename?: string } }>('/api/ocr', async (req, reply) => {
+  const body = req.body as unknown
+  if (!(body instanceof Uint8Array) || body.byteLength === 0) {
+    return reply
+      .code(400)
+      .send({ error: 'body 必须是图片原始字节（Content-Type: application/octet-stream）' })
+  }
+  const ocr = await recognizeImage(Buffer.from(body), {
+    filename: req.query.filename,
+    sidecarDir: OCR_SAMPLES_DIR,
+  })
+  if (!ocr.ok) {
+    return { ok: false, reason: ocr.reason ?? 'ocr_failed', observation: ocr.observation }
+  }
+  return finishOcrPipeline(ocr.text, ocr.observation)
+})
+
+/** POST /api/ocr/text —— 已有 OCR 文本（评测 / 旁车） */
+app.post<{ Body: { text?: string } }>('/api/ocr/text', async (req, reply) => {
+  const text = req.body?.text?.trim()
+  if (!text) return reply.code(400).send({ error: 'text 必填' })
+  const observation = {
+    modality: 'image' as const,
+    source: 'ocr-text',
+    at: new Date().toISOString(),
+    payload: text,
+    confidence: 1,
+    recognizer: 'passthrough',
+  }
+  return finishOcrPipeline(text, observation)
+})
+
+async function finishOcrPipeline(text: string, observation: import('@x-agent/core/observation').Observation) {
+  const fields = parseWechatOrderText(text)
+  const utterance = wechatOrderToUtterance(fields)
+  const aliasSuggestions = await recordOcrAliasCandidates(prisma, text, fields)
+
+  const [customers, products] = await Promise.all([
+    prisma.customer.findMany({ select: { id: true, name: true, code: true } }),
+    prisma.product.findMany({ select: { id: true, model: true, name: true } }),
+  ])
+
+  let interpretResult = null
+  if (utterance) {
+    const norm = normalizeAsrText(utterance, { products, customers })
+    const u = norm.text
+    const result = await interpret(u, {
+      tools,
+      schemas: rawSchemas,
+      ctx: { db: prisma, today: new Date() },
+      dict: { customers, products },
+      llm: runtime.settings,
+      today: new Date(),
+    })
+    const schemaDef = rawSchemas.get(result.verb)
+    let slots = await hydrateInference(result.slots, schemaDef, { db: prisma })
+    slots = await applyListPriceFallback(slots, schemaDef, { db: prisma })
+    const tool = tools.get(result.verb)!
+    const ambiguous = slots.filter((s) => s.candidates?.length)
+    const missing = slots
+      .filter((s) => s.value === null && tool.parameters.required.includes(s.slot))
+      .map((s) => s.slot)
+    interpretResult = {
+      utterance: u,
+      ...result,
+      slots,
+      missing,
+      ready: missing.length === 0 && ambiguous.length === 0,
+    }
+  }
+
+  return {
+    ok: true,
+    text,
+    observation,
+    fields,
+    utterance,
+    aliasSuggestions,
+    interpret: interpretResult,
+  }
+}
 
 /** 真人语料目录：画布「存为语料」的落点，gitignore 掉（含人声，不该入库） */
 const CORPUS_DIR = join(ROOT, 'eval', 'asr-wavs-real')

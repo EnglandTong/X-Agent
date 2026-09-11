@@ -7,6 +7,7 @@ import {
   AudioOutlined,
   PlusOutlined,
   SaveOutlined,
+  PictureOutlined,
 } from '@ant-design/icons'
 import { ConfirmCard } from './ConfirmCard'
 import { PanelCard } from './PanelCard'
@@ -135,6 +136,7 @@ export default function App() {
   const [lastRecording, setLastRecording] = useState<{ wav: ArrayBuffer; id: string } | null>(null)
   /** 录音句柄放 ref：它变化不该触发重渲染 */
   const recorderRef = useRef<RecordHandle | null>(null)
+  const ocrInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     sessionIdRef.current = sessionId
@@ -401,6 +403,65 @@ export default function App() {
       }
     } catch {
       message.error('存语料请求失败')
+    }
+  }
+
+  // ---------------------------------------------------------------- OCR 上传订单截图
+
+  async function uploadOrderImage(file: File) {
+    if (busy) return
+    setBusy(true)
+    try {
+      const buf = await file.arrayBuffer()
+      const r = await fetch(`/api/ocr?filename=${encodeURIComponent(file.name)}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/octet-stream' },
+        body: buf,
+      }).then((x) => x.json())
+
+      if (!r.ok) {
+        message.warning(r.reason ?? 'OCR 识别失败')
+        return
+      }
+      if (r.aliasSuggestions?.length) {
+        message.info(
+          `已记录 ${r.aliasSuggestions.length} 条 OCR 别名建议（候选，须审核后才生效）`
+        )
+      }
+
+      const interp = r.interpret
+      const text = r.utterance || r.text || ''
+      if (!interp || !text) {
+        message.warning('未能从截图解析出可建单的信息')
+        return
+      }
+
+      setInput(text)
+      if (interp.ready && interp.risk === 'read') {
+        await execute(interp.verb, text, interp.slots)
+        return
+      }
+
+      const schema = await fetch(`/api/schema/${interp.verb}`).then((x) => x.json())
+      setDraft({
+        verb: interp.verb,
+        title: interp.verbTitle,
+        schema,
+        slots: interp.slots,
+        question: interp.question,
+        risk: interp.risk,
+        utterance: text,
+        engine: interp.engine,
+        llm: interp.llm,
+      })
+      message.success('已从订单截图预填确认卡')
+      say(interp.question)
+      scrollDown()
+    } catch {
+      message.error('上传订单截图失败')
+    } finally {
+      setBusy(false)
+      if (ocrInputRef.current) ocrInputRef.current.value = ''
     }
   }
 
@@ -1006,6 +1067,22 @@ export default function App() {
             placeholder="同一链路继续说；新开一张单会自动新开工作页"
             disabled={busy}
             prefix={<span style={{ color: '#52c41a', fontWeight: 700 }}>›</span>}
+          />
+          <input
+            ref={ocrInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp"
+            style={{ display: 'none' }}
+            onChange={(e) => {
+              const f = e.target.files?.[0]
+              if (f) void uploadOrderImage(f)
+            }}
+          />
+          <Button
+            icon={<PictureOutlined />}
+            disabled={busy}
+            onClick={() => ocrInputRef.current?.click()}
+            title="上传微信订单截图（OCR → 确认卡预填）"
           />
           <Button
             icon={<AudioOutlined />}

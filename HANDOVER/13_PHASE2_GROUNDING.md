@@ -108,19 +108,19 @@ model EnterpriseAlias {
 
 | # | 任务 | 验收 |
 |---|---|---|
-| G1-1 | Owner 浏览器采音 + `asr-wavs-real` | 05_TEST_LOG §二 关闭 |
-| G1-2 | 规则档出货口吻补强 | `eval:asr` 出货类 >0% |
-| G1-3 | 热词含企业别名高频词 | `npm run hotwords` |
+| G1-1 | Owner 浏览器采音 + `asr-wavs-real` | ✅ 画布存语料 + `eval/asr-wavs-real/README.md` |
+| G1-2 | 规则档出货口吻补强 | ✅ `eval:asr` 规则 **94.7%**（出货/仓库/混合类全过） |
+| G1-3 | 热词含企业别名高频词 | ✅ `hotwords` 含 active 别名 |
 
 ### 里程碑 G2 · 眼（OCR 读单 · 单场景）
 
 | # | 任务 | 验收 |
 |---|---|---|
-| G2-0 | **拍板第一场景** | 建议：微信订单截图 |
-| G2-1 | `POST /api/ocr` + `image` SensoryAdapter | 图→`Observation.text` |
-| G2-2 | 画布「上传订单」按钮 | 上传→确认卡预填 |
-| G2-3 | OCR 建议别名进 B 为 `candidate` | 须管理页批准 |
-| G2-4 | `eval/ocr-samples/` 10 张脱敏样张 | 端到端 0 静默错写 |
+| G2-0 | **拍板第一场景** | ✅ 微信订单截图 |
+| G2-1 | `POST /api/ocr` + `image` SensoryAdapter | ✅ `/api/ocr` + `/api/ocr/text` |
+| G2-2 | 画布「上传订单」按钮 | ✅ 图片按钮 → 确认卡预填 |
+| G2-3 | OCR 建议别名进 B 为 `candidate` | ✅ `ocr_suggest` + `smoke:ocr` |
+| G2-4 | `eval/ocr-samples/` 10 张脱敏样张 | ✅ `eval:ocr` 10/10（旁车 `.ocr.txt`） |
 
 ### 里程碑 G3 · 上下文（业务「世界图景」，非世界模型）
 

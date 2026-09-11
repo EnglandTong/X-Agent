@@ -8,6 +8,7 @@
 
 | # | 验证项 | 方法 | 结果 |
 |---|---|---|---|
+| 41 | **G1+G2 · 耳收尾 + OCR 微信订单** | `eval:asr`（规则）+ `eval:ocr` + `smoke:ocr` + `hotwords` + `eval:rules` | ✅ ASR 规则 **94.7%**（出货/仓库/混合 全过；基线 78.9%→94.7%）。✅ OCR **10/10** + candidate 别名不入 active。✅ 主 eval **96.2%/95.3%** 不劣化 |
 | 40 | **G0 · 企业别名（B 层）** | `npm run eval:enterprise` + `eval:rules` + `eval:lexicon` + `smoke:observation` | ✅ lookup 4/4（张总/B型/华东 active；老李 candidate 不命中）+ interpret 2/2（「给张总…」走 B′；candidate 不消解）。✅ 主基线 **96.2%/95.3%** 不劣化。API：`/api/enterprise-aliases` CRUD + approve/reject/import |
 | 36 | **ASR 文本规整（型号读法归一）** | `npm run smoke:asr-normalize` + `eval:rules` + `eval:asr`（规则）+ `POST /api/interpret` | ✅ 冒烟全过（`a 杠一百`/`B两百`/`c零零一`/`s o 杠二零二六杠幺零零七`/`A100` → 规范码；「来一百个」不误伤；幂等）。✅ 规则档 **96.2%/95.3%** 不劣化；真口吻 **78.9%** 不劣化；`product` 分类 **6/6**。✅ API：`给张三来五十个 a 杠一百` → `asrNormalized:true` · product 消解到 A-100。落点 `/api/interpret`，**不改 asr.ts / CER hyp** |
 | 37 | **记忆 v2（升格提示 + 共现）** | `npm run smoke:memory` + `GET /api/memory/cooccur` | ✅ 9 断言全过（原 6 + 升格文案 + 共现边 count=2 + minCount 过滤）。升格时 run 响应带 `memoryNotices` |
