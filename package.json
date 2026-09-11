@@ -1,0 +1,21 @@
+{
+  "name": "x-agent",
+  "private": true,
+  "version": "0.1.0",
+  "description": "X-Agent — agent-native architecture for AI-adapted system upgrades",
+  "workspaces": [
+    "packages/*",
+    "apps/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w agent-erp",
+    "serve": "npm run serve -w agent-erp",
+    "setup": "npm run setup -w agent-erp",
+    "typecheck": "npm run typecheck -w @x-agent/core && npm run typecheck -w agent-erp",
+    "eval": "npm run eval -w agent-erp",
+    "smoke:observation": "npm run smoke:observation -w agent-erp"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

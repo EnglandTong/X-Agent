@@ -6,7 +6,7 @@
 
 | | 云端沙箱（当前在跑） | Owner 本地 Windows |
 |---|---|---|
-| 路径 | `/workspace/agt-erp/app` | `D:\Development\Agent_ERP\app`（建议） |
+| 路径 | `/workspace`（monorepo 根） | `D:\Development\X-Agent`（建议；原 `Agent_ERP`） |
 | 用途 | 我（AI）在这里开发 | 你在这里跑真实模型、推 GitHub |
 | GPU | ❌ 无（所以不上本地 Ollama） | RTX 4050 6GB，可跑 Ollama Qwen3-32B |
 | 网络 | GitHub ❌ / Gitee ✅ / CNB ✅ | 全部 ✅ |
@@ -16,14 +16,14 @@
 ## 二、启动（Node 22 + pnpm/npm）
 
 ```bash
-cd app
+# 在 monorepo 根目录（含 package.json workspaces）
 npm install
-npm run setup      # prisma generate + db push + seed（首次）
-npm run build      # 构建前端到 dist/
+npm run setup      # agent-erp：prisma generate + db push + seed（首次）
+npm run build      # 构建前端到 apps/agent-erp/dist/
 npm run serve      # 启动服务，端口 3001
 
 # 开发模式（前端热更新，5173 代理到 3001）
-npm run dev
+npm run dev -w agent-erp
 ```
 
 | 命令 | 作用 |
@@ -170,7 +170,7 @@ copy app\.env.example app\.env
 | `local` | 浏览器采 16k WAV → `POST /api/asr` → SenseVoice | 服务端加载权重；不依赖浏览器实现，离线可用 |
 
 ```powershell
-cd app
+cd apps\agent-erp
 npm run hotwords        # 重导热词（客户/产品/仓库/动词词）→ 文本规整原料，SenseVoice 用不上
 npm run asr:wavs        # 造评测音频 → eval/asr-wavs/（不入库）
 $env:SHERPA_ASR_CMD = 'npx tsx scripts/asr-transcribe.ts'

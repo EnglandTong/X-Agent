@@ -1,4 +1,18 @@
-# AGT-ERP · Agent-Driven ERP (PoC)
+# X-Agent
+
+**Agent-native architecture** for upgrading, adapting, and operating existing systems with AI — safely, through schema-driven verbs and human confirmation.
+
+This monorepo contains:
+
+| Path | Role |
+|---|---|
+| [`packages/core/`](./packages/core/) | **X-Agent framework** — `x-agent` manifest, Observation, Run lifecycle, capability registry (`@x-agent/core`) |
+| [`apps/agent-erp/`](./apps/agent-erp/) | **Reference app** — sales order → shipment PoC that validates X-Agent (formerly the whole repo as `Agent_ERP`) |
+| [`HANDOVER/`](./HANDOVER/00_START_HERE.md) | ERP PoC handover docs (Chinese, single source of truth for the reference app) |
+
+> **Naming**: **X-Agent** = product / architecture. **`x-agent`** = JSON Schema extension field (lowercase, unchanged).
+
+## Reference app demo
 
 Drive business actions with a single sentence. Record every action in immutable tiles.
 
@@ -10,64 +24,33 @@ User says at the bottom: 「Get Zhang San 120 units of A-100, due next Wednesday
    → persisted → tile frozen forever
 ```
 
-> **Note** — internal docs under [`HANDOVER/`](./HANDOVER/00_START_HERE.md) are written in Chinese.
-> They are the **single source of truth** for architecture, verb specs, decisions and test logs.
+## Quick start (agent-erp)
 
-## 👉 Taking over development? Start here
+```bash
+npm install          # workspace root — installs @x-agent/core + agent-erp
+npm run setup        # prisma client + schema + seed (agent-erp)
+npm run build
+npm run serve        # http://localhost:3001
+```
 
-**[HANDOVER/00_START_HERE.md](./HANDOVER/00_START_HERE.md)**
+Windows: double-click [`Start.bat`](./Start.bat) (installs from repo root, runs `apps/agent-erp`).
 
-The handover docs are self-contained — read `00 → 01 → 02 → 03 → 04` and you can continue without
-any chat history. **Read `12` before starting work** (dispatch list: assets to keep / task list /
-red lines / parallel discipline).
+Fill the model key: in-app gear icon → cloud model → paste key → save & test
+(see [07_OPS.md](./HANDOVER/07_OPS.md)).
+
+## Taking over development?
+
+**Framework protocol**: [`packages/core/00_MANIFEST.md`](./packages/core/00_MANIFEST.md) · [`packages/core/01_OBSERVATION.md`](./packages/core/01_OBSERVATION.md)
+
+**Reference app**: **[HANDOVER/00_START_HERE.md](./HANDOVER/00_START_HERE.md)** — read `00 → 01 → 02 → 03 → 04`; read **`12`** before coding.
 
 | File | Contents |
 |---|---|
 | [00_START_HERE.md](./HANDOVER/00_START_HERE.md) | Status snapshot, five red lines, next steps |
-| [01_VISION.md](./HANDOVER/01_VISION.md) | Product philosophy and explicit non-goals |
 | [02_ARCHITECTURE.md](./HANDOVER/02_ARCHITECTURE.md) | Five-layer architecture, x-agent protocol, data model |
-| [`app/src/core/01_OBSERVATION.md`](./app/src/core/01_OBSERVATION.md) | **Input-side standard**: unified Observation + pluggable adapters (senses / models) |
-| [03_VERBS.md](./HANDOVER/03_VERBS.md) | **12 verb** specs, business rules, change-order mechanism |
-| [04_DECISIONS.md](./HANDOVER/04_DECISIONS.md) | Decision log (incl. rejected options and owner corrections) |
-| [05_TEST_LOG.md](./HANDOVER/05_TEST_LOG.md) | Verified / unverified items with repro commands |
-| [06_ROADMAP.md](./HANDOVER/06_ROADMAP.md) | 12-verb landscape, W1 todos, milestones |
-| [07_OPS.md](./HANDOVER/07_OPS.md) | Startup, backup, API key config, troubleshooting |
-| [08_FILE_TREE.md](./HANDOVER/08_FILE_TREE.md) | Responsibility of every file |
-| [09_GLOSSARY.md](./HANDOVER/09_GLOSSARY.md) | Glossary + owner collaboration preferences |
-| [10_SESSION_LOG.md](./HANDOVER/10_SESSION_LOG.md) | Discussion history (why it is the way it is) |
-| [11_PERSONAL_LEXICON.md](./HANDOVER/11_PERSONAL_LEXICON.md) | Personal lexicon schema + resolve/canvas hook points |
-| [**12_HANDOFF.md**](./HANDOVER/12_HANDOFF.md) | **Dispatch list**: assets to keep / T0–T6 tasks / red lines (**read before starting**) |
+| [03_VERBS.md](./HANDOVER/03_VERBS.md) | Verb specs, business rules, change-order mechanism |
+| [12_HANDOFF.md](./HANDOVER/12_HANDOFF.md) | Dispatch list, red lines, parallel discipline |
 
-## Quick start
+## Repository rename
 
-```bash
-cd app
-npm install
-npm run setup     # prisma client + schema + seed data
-npm run build
-npm run serve     # http://localhost:3001
-```
-
-Fill the model key: in-app gear icon (top-right) → cloud model → paste key → save & test
-(see [07_OPS.md](./HANDOVER/07_OPS.md)).
-
-## Current status (2026-09-07, after the T1 real-world run)
-
-| Item | Status |
-|---|---|
-| Verbs | ✅ **13** landed (sales order → shipment line + `lexicon.remember`) |
-| Cloud brain | ✅ `doubao-seed-2.0-lite` (key in `app/.env.local`, never committed) |
-| Rules fallback | ✅ silently falls back to rules without a key (verb 96.0% / slot 95.0%) — **works offline** |
-| **End-to-end real run** | ✅ **T1 done**: 10 real-world utterances — cloud **9/10**, offline **6/10**, **0 silent bad writes** |
-| Human usage traces | ✅ `PersonalLexeme` rows & `Panel` tiles no longer zero (were 0 for a long time) |
-| Speech localization | 🟡 **weights in place**: `model.int8.onnx` 228 MB + `tokens.txt` + 24 hotwords (T2 done); CER not yet measured (needs sherpa-onnx runtime) |
-
-**Known gaps** (evidence & repro: [05_TEST_LOG.md](./HANDOVER/05_TEST_LOG.md), section 5):
-
-| # | Gap |
-|---|---|
-| ~~**G1**~~ | ✅ **fixed**: `lexicon.remember` (13th verb) — 「remember: A is B」 now works end-to-end |
-| **G2** | No `price.query`; read-only verbs can **confidently answer the wrong question** (offline mode turned 「how much is a pen」 into an order query) |
-| **G3** | Offline rules engine is weaker than the cloud at verb detection (real-world sample: cloud 97.3% vs rules 78.4%) |
-
-Source of truth: GitHub `main` + `HANDOVER/`. The zip/bundle files are cloud-drive snapshots (gitignored).
+GitHub repo: rename `EnglandTong/Agent_ERP` → **`EnglandTong/X-Agent`** in repository Settings (GitHub keeps redirects from the old URL).

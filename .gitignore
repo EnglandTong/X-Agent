@@ -21,11 +21,11 @@ agt-erp-src.zip
 *.log
 
 # eval run artifacts (keep utterances + failures.jsonl committed)
-app/eval/results/
+apps/agent-erp/eval/results/
 # ASR 评测音频（由 npm run asr:wavs 生成，不入库）
-app/eval/asr-wavs/
+apps/agent-erp/eval/asr-wavs/
 # 真人录音语料（画布「存为语料」生成，含人声，绝不入库）
-app/eval/asr-wavs-real/
+apps/agent-erp/eval/asr-wavs-real/
 *.wav
 
 # large model weights (see app/models/OFFLINE_BUNDLE.md)
@@ -34,10 +34,10 @@ app/eval/asr-wavs-real/
 *.bin
 *.pt
 *.safetensors
-app/models/asr/sensevoice/**
-!app/models/asr/sensevoice/.gitkeep
-!app/models/asr/sensevoice/README*
+apps/agent-erp/models/asr/sensevoice/**
+!apps/agent-erp/models/asr/sensevoice/.gitkeep
+!apps/agent-erp/models/asr/sensevoice/README*
 # tokens.txt 是文本且运行必需（308KB），权重是二进制不入库，但词表必须跟着走
-!app/models/asr/sensevoice/tokens.txt
-app/models/llm/**/*.gguf
-app/models/llm/**/*.bin
+!apps/agent-erp/models/asr/sensevoice/tokens.txt
+apps/agent-erp/models/llm/**/*.gguf
+apps/agent-erp/models/llm/**/*.bin

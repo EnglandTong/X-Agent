@@ -4,7 +4,7 @@
 
 ## 〇、输入统一标准（Observation · 2026-09-09）
 
-> 对外契约全文：`app/src/core/01_OBSERVATION.md` + `observation.ts`。  
+> 对外契约全文：`packages/core/01_OBSERVATION.md` + `@x-agent/core`（`observation.ts`）。  
 > **命题**：无论键盘 / 耳 / 眼（远期），进 Agent 之前都是同一种 **Observation**；核心只吃辨认后的自然语言。  
 > **外层可换**：感官适配器、模型适配器。**内层不换**：interpret → resolve → confirm → run。
 

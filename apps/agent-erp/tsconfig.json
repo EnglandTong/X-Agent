@@ -15,7 +15,9 @@
     "types": ["node"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@x-agent/core": ["../../packages/core/src/index.ts"],
+      "@x-agent/core/*": ["../../packages/core/src/*"]
     }
   },
   "include": ["src", "prisma", "vite.config.ts"]

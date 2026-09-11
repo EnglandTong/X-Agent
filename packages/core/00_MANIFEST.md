@@ -1,7 +1,7 @@
 # 00 · 协议一页纸（x-agent）
 
-> 这是项目的**主干协议**。搬去 With me 主仓时，整个 `core/` 目录一次性带走即可 ——
-> 前提是守住下面那条铁律。
+> 这是 **X-Agent** 的主干协议包（`@x-agent/core`）。
+> 应用（如 `apps/agent-erp`）通过 workspace 依赖本包；守住下面那条铁律即可独立演进。
 >
 > **输入侧标准**见同目录 [`01_OBSERVATION.md`](./01_OBSERVATION.md)（Observation + 适配器）。  
 > 本文件管**能力**（做什么）；01 管**输入**（怎么进来）。两份合起来才是完整对外契约。
@@ -58,7 +58,7 @@
 ## 铁律（违反就搬不走）
 
 1. **`core/` 不得 import `server/`**（尤其 `server/verbs/`）—— 单向依赖。
-   验证：`grep -r "from '\.\./server" src/core/` 必须为空。
+   验证：`grep -r "from '\.\./server" packages/core/src/` 必须为空。
 2. **协议 100% 复用，禁止新定第三套**（决策 D3）。要扩展就加 `resolution` 值 / 加 `modality` 值，不改结构。
 3. **`core/` 只放协议与类型** —— 一旦开始放实现，就变成第二个 server。
 
@@ -66,8 +66,8 @@
 
 | # | 信号 | 判定方式 |
 |---|---|---|
-| T1 | 出现 `core/` → `server/` 反向 import | `grep -r "from '\.\./server" src/core/` 非空 |
+| T1 | 出现 `core/` → `server/` 反向 import | `grep -r "from '\.\./server" packages/core/src/` 非空 |
 | T2 | 第二个应用要接入 | S3 启动日 |
 | T3 | `app/` 拖慢 core 迭代 | `tsc` / `npm install` > 30s |
 
-搬的目的地：**With me 主仓**（决策 #27 / D1）。
+搬的目的地：**X-Agent 主仓 `packages/core`**（决策 #27 / D1，2026-09-11 已落地）。

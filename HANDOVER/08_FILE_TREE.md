@@ -2,9 +2,16 @@
 
 > 4581 行代码（不含 node_modules）。每个文件干什么，一张表说清。
 
+**Monorepo 布局（2026-09-11）**
+
+| 路径 | 职责 |
+|---|---|
+| `packages/core/` | **X-Agent 框架**（`@x-agent/core`）— 协议与纯类型，已搬出应用 |
+| `apps/agent-erp/` | **参考应用** — 下文 `src/`、`server/` 等均相对此目录 |
+
 ---
 
-## 一、Schema 层（唯一事实来源）
+## 一、Schema 层（唯一事实来源 · `apps/agent-erp/src/schema/`）
 
 | 文件 | 行 | 职责 |
 |---|---|---|
@@ -23,20 +30,19 @@
 
 ---
 
-## 一-b、`core/`（主干协议层 · T5 抽离 · 不得 import server/）
+## 一-b、`packages/core/`（X-Agent 主干协议 · 不得 import server/）
 
 | 文件 | 职责 |
 |---|---|
-| `src/core/00_MANIFEST.md` | **协议一页纸**：三个消费者、字段表、消解优先级、加能力套路、铁律、独立仓触发条件 |
-| `src/core/01_OBSERVATION.md` | **输入侧对外标准**：Observation + 感官/模型适配器分工与检查清单 |
-| `src/core/observation.ts` | Observation / SensoryAdapter / ModelAdapter 纯类型 + `textObservation` / `observationText` |
-| `src/core/index.ts` | core 对外 re-export |
-| `src/core/manifest.schema.json` | x-agent manifest 的结构声明（JSON Schema，可用于校验） |
-| `src/core/run.ts` | **Run 六态**（received/interpreted/awaiting/executed/blocked/abandoned）+ 合法转移表，纯类型；modality 对齐 Observation |
-| `src/core/registry.ts` | 能力注册表（**只登记，不含实现**），保证 core 搬得走 |
+| `packages/core/00_MANIFEST.md` | **协议一页纸**：三个消费者、字段表、消解优先级、加能力套路、铁律 |
+| `packages/core/01_OBSERVATION.md` | **输入侧对外标准**：Observation + 感官/模型适配器分工与检查清单 |
+| `packages/core/src/observation.ts` | Observation / SensoryAdapter / ModelAdapter 纯类型 + `textObservation` / `observationText` |
+| `packages/core/src/index.ts` | core 对外 re-export（npm：`@x-agent/core`） |
+| `packages/core/manifest.schema.json` | x-agent manifest 的结构声明（JSON Schema，可用于校验） |
+| `packages/core/src/run.ts` | **Run 六态** + 合法转移表，纯类型 |
+| `packages/core/src/registry.ts` | 能力注册表（**只登记，不含实现**） |
 
-> 搬仓目的地：**With me 主仓**（#27 / D1）。搬的前提是守住「core 不 import server」——
-> 验证：`grep -r "from '\.\./server" src/core/` 必须为空。
+> 验证：`grep -r "from '\.\./server" packages/core/src/` 必须为空。
 
 ---
 

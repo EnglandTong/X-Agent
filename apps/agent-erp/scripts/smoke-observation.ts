@@ -8,7 +8,7 @@ import {
   type Observation,
   type SensoryAdapter,
   type ModelAdapter,
-} from '../src/core/observation'
+} from '@x-agent/core/observation'
 
 let failed = 0
 function check(label: string, cond: boolean, extra = '') {

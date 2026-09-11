@@ -2,9 +2,15 @@
 setlocal EnableExtensions
 title AGT-ERP Server
 
-cd /d "%~dp0app"
+cd /d "%~dp0"
 if errorlevel 1 (
-  echo [ERROR] Cannot find app folder next to this script.
+  echo [ERROR] Cannot find repo root.
+  pause
+  exit /b 1
+)
+
+if not exist "apps\agent-erp\" (
+  echo [ERROR] Cannot find apps\agent-erp folder.
   pause
   exit /b 1
 )
@@ -38,7 +44,7 @@ if not errorlevel 1 (
 )
 
 if not exist "node_modules\" (
-  echo [1/5] Installing dependencies...
+  echo [1/5] Installing workspace dependencies...
   call npm install
   if errorlevel 1 (
     echo [ERROR] npm install failed.
@@ -48,6 +54,8 @@ if not exist "node_modules\" (
 ) else (
   echo [1/5] Dependencies OK
 )
+
+cd apps\agent-erp
 
 if not exist ".env" (
   if exist ".env.example" (
