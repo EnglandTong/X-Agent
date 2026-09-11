@@ -47,7 +47,7 @@ Fill the model key: in-app gear icon → cloud model → paste key → save & te
 
 **Framework protocol**: [`packages/core/00_MANIFEST.md`](./packages/core/00_MANIFEST.md) · [`packages/core/01_OBSERVATION.md`](./packages/core/01_OBSERVATION.md)
 
-**Reference app**: **[HANDOVER/00_START_HERE.md](./HANDOVER/00_START_HERE.md)** — read `00 → 01 → 02 → 03 → 04`; read **`12`** before coding.
+**Reference app**: **[HANDOVER/00_START_HERE.md](./HANDOVER/00_START_HERE.md)** — read `00 → 01 → 02 → 03 → 04`; roadmap **[14_MASTER_PLAN.md](./HANDOVER/14_MASTER_PLAN.md)**; read **`12`** before coding.
 
 | File | Contents |
 |---|---|

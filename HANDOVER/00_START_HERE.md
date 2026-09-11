@@ -4,12 +4,14 @@
 > **主 · X-Agent** 框架见 [`packages/core/README.md`](../packages/core/README.md) —— 不要从本目录推断协议边界。
 
 > 这份档案是**自包含**的。你不需要看任何历史聊天记录 —— 读完 `00 → 01 → 02 → 03 → 04`，
-> 你就能接着往下做。Owner 会在新会话里对你说「去仓库把档案取出来读」，读的就是这里。
+> 再扫 [`14_MASTER_PLAN.md`](./14_MASTER_PLAN.md) 对齐 Phase，你就能接着往下做。
 
-**项目代号**：Agent_ERP（支）· 仓库名 **X-Agent**（主仓 monorepo）
-**应用路径**：`apps/agent-erp/`（原 `app/`）
-**档案版本**：v1.8 · 2026-09-09（13 动词 · ASR 规整 · **记忆 v2** · **D9 本地 0.6B 未达标** · **UI rows/credit 收尾** · 本轮见 `10_SESSION_LOG`）
-**代码状态**：**13 动词**（含 `lexicon.remember`）；云端 LLM 已通（模型 100%/100%）；**T1–T5 派工单全部完成**；**本地 SenseVoice「耳」已接进画布**（`POST /api/asr`，默认引擎仍是浏览器 Web Speech，设置面板可切）；**TTS 已接进画布**（说+听闭环）；**ASR 文本规整**已接进 `/api/interpret`（`a 杠一百`→`A-100`，两只耳朵都受益）；**CER 实测已有数字**（合成语音 34.02%，且被测引擎 = 在用引擎）；记忆网络 v2 已落地（升格提示 + 共现 API）；**G1/G2 已关闭，G3 已缓解**。
+**项目代号**：Agent_ERP（支）· 仓库名 **X-Agent**（主仓 monorepo）  
+**应用路径**：`apps/agent-erp/`（原 `app/`）  
+**档案版本**：v1.9 · 2026-09-11（**Phase 2 G0–G3 已合并** · 总纲 `14` 落档）  
+**代码状态**：`main` @ **`b9e92df`**（PR #8 合并）—— **13 动词**；云端 LLM 已通；**企业别名 B（G0）**；**ASR 规则档 94.7%（G1）**；**微信 OCR 10/10（G2）**；**会话上下文 + 确认卡摘要（G3）**；记忆 v2；TTS + 双 ASR 引擎；本地 0.6B 未达标仍用云端默认。
+
+**当前阶段**：**Phase 1 · 稳定与 Owner 验收**（见 `14_MASTER_PLAN.md` §七）。
 
 ### 事实源优先级（避免多份互相打架）
 
@@ -36,24 +38,29 @@
 
 ---
 
-## 二、当前状态快照（2026-09-09；同步 / 「耳」两行为今日现场核对，其余沿用 09-08）
+## 二、当前状态快照（2026-09-11 · `main` @ `b9e92df`）
 
 | 项目 | 状态 | 说明 |
 |---|---|---|
+| **开发阶段** | 🟡 **Phase 1** | Phase 0 + Phase 2（G0–G3）已完成；详见 [`14_MASTER_PLAN.md`](./14_MASTER_PLAN.md) |
 | 动词数量 | ✅ **13** | 订单→出货 12 个 + `lexicon.remember`（D10） |
-| Agent 引擎 | ✅ **云端模型已通** | `doubao-seed-2.0-lite`；失败仍回落 rules；**低置信只读会诚实说「不确定」（D11）** |
-| 前端画布 | ✅ 可用 | 不可变格子 + 修订/变更单分流 + **「记住这个说法」实体按钮（含就地反馈）** + **语音输入按钮（两只耳朵可选）** |
-| 数据库 | ✅ SQLite | 含 Delivery / Inventory.reserved / **LexemeEvidence（记忆证据，#28）** |
-| 派工单 T0–T6 | ✅ **全部完成** | T1 真跑 9/10 · T2 权重 228MB · T3 评测集 39 条 · T4 消解收紧 · T5 抽 `core/` |
-| 记忆 | ✅ **v2 已落地** | 候选区 → 跨天升格；升格时画布提示「我注意到你常说 X」；`GET /api/memory/cooccur` 从 Panel.entities 派生共现 |
-| TTS（说） | ✅ **已接进画布** | `POST /api/speak` + 设置面板开关 + 试听；`npm run say` 仍可用。感官盘点：**文字 ✅ · 听 ✅（两只耳朵，见下）· 说 ✅（画布会主动念结果）** |
-| 源码版本 | ✅ GitHub `main` | `EnglandTong/Agent_ERP` |
-| **同步状态** | ✅ **已同步** | 2026-09-09 推送 `eb021cd..6760ee5`（4 个提交，本轮「耳」接进画布 + 文档回写）到 `origin/main`，本地与远端 `rev-parse` 一致。⚠️ 校正：推送前远端已在 `eb021cd`（本表此前转述为 `7daba7a`，是从 v1.4 抄来未跟新的旧账） |
-| 密钥文件 | ✅ Key 在 `.env.local` | 设置面板已填；不进 Git |
-| 评测 | ✅ 四件套 | `eval`(53 条) / `eval:asr`(39 条真口吻) / `eval:lexicon` / `eval:compare`；基线：云端 97.4% / 规则 78.9%（真口吻） |
-| 已验证项 | ✅ 见 `05_TEST_LOG.md` | 35 项，含 T1 十条真口吻、两档基线、记忆冒烟、「耳」等价验证 |
-| ASR（听） | ✅ **被测的耳朵 = 在用的耳朵** + **文本规整** | 本地 SenseVoice int8 已**接进画布**（`POST /api/asr`）：39 条 HTTP 与离线报告 **hyp 逐字相同 39/39** · RTF p50 **0.039** · `verify:asr`。默认引擎仍是 **`browser`（Web Speech）**，设置面板可切。**规整层**（`asrNormalize.ts`）在 `/api/interpret` 入口把 `a 杠一百`/`B两百`/`c零零一`/`s o 杠…` 归一回主数据写法；`npm run smoke:asr-normalize`。**CER 34.02% · 完全命中 10/39 · 专有名词 49.1%** 的音频仍是 **SAPI 合成**，偏乐观（CER 故意不吃规整，看的是耳朵原话） |
-| 未验证项 | ⚠️ | **浏览器采音那半截**（`getUserMedia` → WAV；本机无 ffmpeg、无头浏览器授权未知 → 只能人耳验，步骤见 `05_TEST_LOG` §二）、**真人录音**下的 CER（合成语音基线已有）、并发、PostgreSQL |
+| Agent 引擎 | ✅ **云端模型已通** | `doubao-seed-2.0-lite`；失败仍回落 rules；低置信只读诚实提示（D11） |
+| 接地层 | ✅ **A + B** | 个人用语 `PersonalLexeme` + 企业别名 `EnterpriseAlias`（B 须人工 `active`）；见 `13_PHASE2_GROUNDING.md` |
+| 前端画布 | ✅ 可用 | 不可变格子 + 修订/变更单 + 「记住这个说法」+ 语音 + **上传订单图（OCR）** + 上下文摘要 |
+| 数据库 | ✅ SQLite | Customer / Order / Delivery / Panel / Lexeme / **EnterpriseAlias** |
+| 派工单 T0–T6 | ✅ **全部完成** | 见 `12_HANDOFF.md` |
+| Phase 2 G0 | ✅ **企业别名 B** | PR #6 · `eval:enterprise` **6/6** |
+| Phase 2 G1 | ✅ **耳收尾** | 出货口吻规则 · `eval:asr` 规则档 verb **94.7%**（36/38）· 热词含 active 别名 |
+| Phase 2 G2 | ✅ **眼 OCR** | 微信订单截图 · `POST /api/ocr` · `eval:ocr` **10/10** |
+| Phase 2 G3 | ✅ **上下文** | `sessionContext` · 「就按上一张图」· `contextSummary` · `eval:context` **3/3** |
+| 记忆 | ✅ **v2** | 候选→跨天升格 · 画布提示 · `GET /api/memory/cooccur` |
+| TTS（说） | ✅ 已接画布 | `POST /api/speak` + 设置面板开关 |
+| ASR（听） | ✅ 双引擎 + 规整 | 默认 `browser` Web Speech；可切本地 SenseVoice（`POST /api/asr`）；`asrNormalize` 在 interpret 入口；合成语音 CER **34.02%**（偏乐观） |
+| 源码版本 | ✅ GitHub `main` | **`EnglandTong/X-Agent`** @ `b9e92df` |
+| 密钥文件 | ✅ `.env.local` | 设置面板填 Key；不进 Git |
+| 评测套件 | ✅ 六件套 | `eval` **46/53** · `eval:asr` 规则 verb **94.7%** · `eval:enterprise` **6/6** · `eval:ocr` **10/10** · `eval:context` **3/3** · `eval:lexicon` / `eval:compare` |
+| 已验证项 | ✅ 见 `05_TEST_LOG.md` | Phase 2 各里程碑 + 历史 T0–T6 |
+| **未验证 / 缺口** | ⚠️ | 浏览器真人采音全流程（见 `05` §二）· **真人录音 CER** · `trial:10` 信用句式 · `eval:asr` 2 条 verb 边界 · 并发 · PostgreSQL |
 
 ---
 
@@ -69,26 +76,30 @@
 
 ---
 
-## 四、接手后第一步做什么（按优先级，2026-09-09 更新）
+## 四、接手后第一步做什么（Phase 1 · 2026-09-11）
 
 | P | 事项 | 验收标准 |
 |---|---|---|
-| **P0** | ~~推送积压的 commit~~ ✅ **已完成**（2026-09-08 / 09-09 两轮） | `git log --oneline origin/main -1` = `6760ee5`（09-09 推 `eb021cd..6760ee5`） |
-| **P1** | **Owner 人工验浏览器采音**（本轮唯一无机器证据的一截）：`npm run build` → 3001 打开设置面板切「本地 SenseVoice」→ 保存 → 点麦克风说一句 → 「存为语料」→ 切回浏览器录同一句对比。步骤全文见 `05_TEST_LOG.md` §二 | 输入框出文本（本地会写成 `a 杠一百` 这类中文读法）· 画布出卡 · 听到播报 · `app/eval/asr-wavs-real/` 出现该 wav · 服务端日志有 `[asr] LOAD ms=` 且响应 `decodeMs` 非空 |
-| **P1** | Owner 体感验证：画布执行一个只读动词 → **应听到结果播报**；设置面板可一键关 | 出声；关掉后再执行不再出声 |
-| **P1** | Owner 体感验证：画布说「记住：老张就是张三」→ 点确认 → **明天再说一次** → 看升格提示 | `PersonalLexeme` 里 `老张` 从 `candidate` 变 `active` |
-| **P1** | 下一波开发候选 | **C / D / E 已完成**（2026-09-09）：记忆 v2 升格提示+共现 API；本地 0.6B 对比未达标→默认云端；UI `data.rows` 表格化 + credit 去伪字段 | 见 `12_HANDOFF` / `COMPARE_MODELS` |
-| **P2** | 阶段备份：push + 重打网盘包 | 见 `07_OPS.md` |
+| **P0** | Owner 真机跑通十条口吻 | `npm run trial:owner10` ≥ **9/10**；开单→确认→出货闭环 |
+| **P0** | 修 `trial:10` 信用句式 | 「老王信用够不够…」→ `credit.check` 能抽到 customer |
+| **P1** | Owner 浏览器采音 + 存语料 | 设置切 SenseVoice → 麦克风 → 「存为语料」→ `eval/asr-wavs-real/` 有 wav；步骤见 `05_TEST_LOG.md` §二 |
+| **P1** | 回归不劣化 | `npm run eval` + `eval:asr` + `eval:enterprise` + `eval:ocr` + `eval:context` |
+| **P1** | Owner 体感：记忆升格 | 「记住：老张就是张三」→ 跨天再说 → 升格提示 |
+| **P2** | 真人录音 CER | 非 SAPI 合成；报告进 `eval/results/` |
+| **P2** | 阶段备份 | push + 重打网盘包，见 `07_OPS.md` |
+
+> 完整路线图（Phase 2–5）：[`14_MASTER_PLAN.md`](./14_MASTER_PLAN.md) §七。
 
 ---
 
 ## 五、新会话的第一条 prompt（Owner 可直接复制）
 
 ```
-读取仓库里的 HANDOVER/00_START_HERE.md，然后按 01 → 02 → 03 → 04 顺序读完。
+读取 HANDOVER/00_START_HERE.md 与 HANDOVER/14_MASTER_PLAN.md，
+然后按 01 → 02 → 03 → 04 顺序读完。
 读完后用不超过 10 行回答：
-1) 项目现在处于什么阶段
-2) 接下来 P0 该做什么
+1) 项目现在处于什么 Phase、P0 是什么
+2) 五条红线
 3) 你需要我提供什么（比如 API Key、评测样本）
 不要动手改代码，先确认你理解对了。
 ```
@@ -100,17 +111,18 @@
 | 文件 | 内容 | 什么时候读 |
 |---|---|---|
 | `00_START_HERE.md` | 本文件：状态 + 红线 + 下一步 | 每次接手先读 |
+| **`14_MASTER_PLAN.md`** | **项目总纲与 Phase 0–5 开发计划** | **想法多时、排期时必读** |
 | `01_VISION.md` | 产品哲学、命题、明确不做的事 | 第一次读 |
 | `02_ARCHITECTURE.md` | 五层架构、x-agent 协议、数据模型 | 写代码前 |
 | （框架）`packages/core/01_OBSERVATION.md` | **输入侧对外标准**：Observation + 感官/模型适配器 | 接新耳/眼/模型前 |
-| `03_VERBS.md` | **13 个动词**规格、业务规则、状态机、变更单、API（含 `/api/lexicon`） | 写动词前 |
+| `03_VERBS.md` | **13 个动词**规格、业务规则、状态机、变更单、API | 写动词前 |
 | `04_DECISIONS.md` | 决策日志（含被否决方案与 Owner 纠正） | **必读**，避免重蹈覆辙 |
 | `05_TEST_LOG.md` | 已验证 / 未验证 / 复现命令 | 改完代码要回归时 |
-| `06_ROADMAP.md` | 12 动词全景、W1-Wn、节点 | 排期时 |
+| `06_ROADMAP.md` | 12 动词全景、加动词检查清单、节点 | 排期时 |
 | `07_OPS.md` | 启动、备份、Key 配置、故障排查 | 跑不起来时 |
 | `08_FILE_TREE.md` | 每个文件的职责 | 找代码时 |
 | `09_GLOSSARY.md` | 术语表 + Owner 协作偏好 | 沟通前 |
-| `10_SESSION_LOG.md` | 历次讨论流水（谁说了什么、怎么定的） | 想知道「为什么」时 |
-| `11_PERSONAL_LEXICON.md` | 接地层 A（个人用语）+ B（企业别名）概要 | 做习惯学习 / 别称记忆时 |
-| **`13_PHASE2_GROUNDING.md`** | **Phase 2 工单**：A+B 接地、耳收尾、OCR、上下文 | **感官/接地开发前必读** |
-| **`12_HANDOFF.md`** | **派工单：保留资产 / 现状四象限 / T0–T6 任务单 / 红线 / 并行纪律** | **开工前必读**（交给外部执行者时） |
+| `10_SESSION_LOG.md` | 历次讨论流水 | 想知道「为什么」时 |
+| `11_PERSONAL_LEXICON.md` | 接地层 A + B 概要 | 做习惯学习 / 别称记忆时 |
+| `13_PHASE2_GROUNDING.md` | Phase 2 工单明细（G0–G3，已完成） | 追溯感官/接地实现时 |
+| `12_HANDOFF.md` | 派工单：T0–T6 / 红线 / 并行纪律 | 交给外部执行者时 |
