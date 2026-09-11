@@ -16,6 +16,11 @@
 
 import type { PrismaClient } from '@prisma/client'
 import { lookupSlot, validateSlotTarget } from './lexicon'
+import {
+  lookupEnterpriseAlias,
+  validateEnterpriseTarget,
+  type EntityKind,
+} from './enterpriseAlias'
 
 // ---------------------------------------------------------------- 类型
 
@@ -407,6 +412,31 @@ export async function resolveSlot(
           0.95,
           `${hit.note} → ${hit.targetLabel ?? target}`
         )
+      }
+    }
+
+    // 插入点 B′：企业别名（A 未命中后、code/fuzzy 之前）
+    const entKind: EntityKind | null =
+      resolution === 'fuzzy_customer'
+        ? 'customer'
+        : resolution === 'fuzzy_product'
+          ? 'product'
+          : lexSlot === 'warehouse'
+            ? 'warehouse'
+            : null
+    if (entKind) {
+      const ent = await lookupEnterpriseAlias(ctx.db, String(raw), entKind)
+      if (ent && (await validateEnterpriseTarget(ctx.db, ent))) {
+        const target = ent.entityId
+        if (
+          (resolution === 'enum' || resolution === 'enum_alias') &&
+          meta.enum &&
+          !meta.enum.includes(target)
+        ) {
+          // 别名目标不在枚举内 → 忽略
+        } else {
+          return ok(target, ent.label, 0.96, `${ent.note} → ${ent.label}`)
+        }
       }
     }
   }

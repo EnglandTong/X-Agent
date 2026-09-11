@@ -11,7 +11,7 @@
 | 层 | 表 | 谁维护 | 例子 | 生效门槛 |
 |---|---|---|---|---|
 | **A · 个人用语** | `PersonalLexeme` + `LexemeEvidence` | 用户点「记住」/ 跨天升格 | 老张→张三；开张单→`order.create` | 候选→跨≥2天→`active`（#28 已有） |
-| **B · 企业别名** | `EnterpriseAlias`（**待建**） | 财务/管理员导入或录入 | 中行→中国银行XX支行有限公司；开票简称→客户编码 | **`candidate` → 人工批准 → `active`** |
+| **B · 企业别名** | `EnterpriseAlias`（**已建**） | 财务/管理员导入或录入 | 张总→张三；B型→B-200；华东→华东仓 | **`candidate` → 人工批准 → `active`** |
 
 **刻意不做**：开放域向量 RAG、物理「世界模型」、模型直接输出 ID。
 
@@ -97,12 +97,12 @@ model EnterpriseAlias {
 
 | # | 任务 | 验收 |
 |---|---|---|
-| G0-1 | Prisma `EnterpriseAlias` + migrate | 表存在，seed 可空 |
-| G0-2 | `enterpriseAlias.ts` CRUD + `approve/reject` API | 候选→active 须显式 API |
-| G0-3 | `resolve.ts` 插入点 B′（B 在 A 之后、code 之前） | 「中行」命中企业别名→客户 |
-| G0-4 | 管理 UI 或 CSV 导入脚本（最小） | 财务能导入 10 条候选并批准 |
-| G0-5 | `eval/alias-enterprise.jsonl` 5～10 条 | `npm run eval` 不劣化 |
-| G0-6 | 更新 `11_PERSONAL_LEXICON.md` + `04_DECISIONS` #30 | 档案一致 |
+| G0-1 | Prisma `EnterpriseAlias` + migrate | ✅ 表存在，seed 4 条 |
+| G0-2 | `enterpriseAlias.ts` CRUD + `approve/reject` API | ✅ `/api/enterprise-aliases` |
+| G0-3 | `resolve.ts` 插入点 B′（B 在 A 之后、code 之前） | ✅ 「张总」→张三 |
+| G0-4 | 管理 UI 或 CSV 导入脚本（最小） | ✅ `import:enterprise-aliases` + API import |
+| G0-5 | `eval/alias-enterprise.jsonl` 5～10 条 | ✅ `eval:enterprise` 6/6；主 eval 不劣化 |
+| G0-6 | 更新 `11_PERSONAL_LEXICON.md` + `04_DECISIONS` #30 | ✅ |
 
 ### 里程碑 G1 · 耳收尾
 

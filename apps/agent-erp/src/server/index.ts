@@ -49,6 +49,16 @@ import {
   isStandardTerm,
   observeUsage,
 } from './lexicon'
+import {
+  listEnterpriseAliases,
+  upsertEnterpriseAlias,
+  approveEnterpriseAlias,
+  rejectEnterpriseAlias,
+  retireEnterpriseAlias,
+  importEnterpriseAliasesCsv,
+  type EntityKind,
+  type AliasStatus,
+} from './enterpriseAlias'
 import { cooccurFromPanels, formatPromoteNotice, type MemoryNotice } from './memory'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
@@ -359,6 +369,97 @@ app.delete<{ Params: { id: string } }>('/api/lexicon/:id', async (req, reply) =>
     return reply.code(404).send({ error: '用语不存在' })
   }
 })
+
+// ---------------------------------------------------------------- 企业别名（B 层）
+
+app.get<{ Querystring: { status?: string; entityKind?: string } }>(
+  '/api/enterprise-aliases',
+  async (req) => {
+    const status = req.query.status as AliasStatus | undefined
+    const entityKind = req.query.entityKind as EntityKind | undefined
+    const rows = await listEnterpriseAliases(prisma, { status, entityKind })
+    return { aliases: rows }
+  }
+)
+
+app.post<{
+  Body: {
+    entityKind?: EntityKind
+    entityId?: string
+    alias?: string
+    source?: string
+    note?: string
+    status?: AliasStatus
+    approvedBy?: string
+  }
+}>('/api/enterprise-aliases', async (req, reply) => {
+  const b = req.body ?? {}
+  if (!b.entityKind || !b.entityId || !b.alias?.trim()) {
+    return reply.code(400).send({ error: 'entityKind、entityId、alias 必填' })
+  }
+  try {
+    const row = await upsertEnterpriseAlias(prisma, {
+      entityKind: b.entityKind,
+      entityId: b.entityId,
+      alias: b.alias,
+      source: b.source,
+      note: b.note,
+      status: b.status ?? 'candidate',
+      approvedBy: b.approvedBy,
+    })
+    return { ok: true, alias: row }
+  } catch (e: any) {
+    return reply.code(400).send({ error: String(e?.message ?? e) })
+  }
+})
+
+app.post<{ Params: { id: string }; Body: { approvedBy?: string } }>(
+  '/api/enterprise-aliases/:id/approve',
+  async (req, reply) => {
+    try {
+      const row = await approveEnterpriseAlias(
+        prisma,
+        req.params.id,
+        req.body?.approvedBy ?? 'owner'
+      )
+      return { ok: true, alias: row }
+    } catch {
+      return reply.code(404).send({ error: '别名不存在' })
+    }
+  }
+)
+
+app.post<{ Params: { id: string } }>('/api/enterprise-aliases/:id/reject', async (req, reply) => {
+  try {
+    const row = await rejectEnterpriseAlias(prisma, req.params.id)
+    return { ok: true, alias: row }
+  } catch {
+    return reply.code(404).send({ error: '别名不存在' })
+  }
+})
+
+app.delete<{ Params: { id: string } }>('/api/enterprise-aliases/:id', async (req, reply) => {
+  try {
+    const row = await retireEnterpriseAlias(prisma, req.params.id)
+    return { ok: true, alias: row }
+  } catch {
+    return reply.code(404).send({ error: '别名不存在' })
+  }
+})
+
+app.post<{ Body: { csv?: string; defaultStatus?: AliasStatus; approvedBy?: string } }>(
+  '/api/enterprise-aliases/import',
+  async (req, reply) => {
+    const csv = req.body?.csv
+    if (!csv?.trim()) return reply.code(400).send({ error: 'csv 必填' })
+    const results = await importEnterpriseAliasesCsv(prisma, csv, {
+      defaultStatus: req.body?.defaultStatus ?? 'candidate',
+      approvedBy: req.body?.approvedBy ?? 'import',
+    })
+    const ok = results.filter((r) => r.ok).length
+    return { ok: true, imported: ok, total: results.length, results }
+  }
+)
 
 /** 根据确认结果生成「是否记住」提议（不入库） */
 app.post<{

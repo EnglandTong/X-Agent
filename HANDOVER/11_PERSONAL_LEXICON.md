@@ -23,7 +23,7 @@
 | 层 | 文档章节 | 表 |
 |---|---|---|
 | **A · 个人** | 下文 §二起 | `PersonalLexeme` |
-| **B · 企业** | [`13_PHASE2_GROUNDING.md`](./13_PHASE2_GROUNDING.md) §三 | `EnterpriseAlias`（待建） |
+| **B · 企业** | [`13_PHASE2_GROUNDING.md`](./13_PHASE2_GROUNDING.md) §三 | `EnterpriseAlias`（**已建** · `eval:enterprise`） |
 
 ---
 
