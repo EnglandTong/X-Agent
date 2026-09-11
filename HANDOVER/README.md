@@ -9,5 +9,5 @@
 | **主** X-Agent | `packages/core/` | `packages/core/*.md` |
 | **支** Agent_ERP | `apps/agent-erp/` | **本 `HANDOVER/`** |
 
-接手 ERP 应用开发：从 [`00_START_HERE.md`](./00_START_HERE.md) 读起。  
+接手 ERP 应用开发：从 [`00_START_HERE.md`](./00_START_HERE.md) 读起；路线图见 [`14_MASTER_PLAN.md`](./14_MASTER_PLAN.md)。  
 接手框架 / 协议：去读 `packages/core/`，不要从 HANDOVER 推断框架边界。
