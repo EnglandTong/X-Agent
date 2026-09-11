@@ -38,6 +38,15 @@ import { recognizeImage, ocrStatus } from './ocr'
 import { parseWechatOrderText, wechatOrderToUtterance } from './ocrWechat'
 import { recordOcrAliasCandidates } from './ocrSuggest'
 import {
+  getSensoryFocus,
+  setSensoryFocus,
+  updateSensoryFocusFromSlots,
+  customerInjectFromFocus,
+  isSensoryContextRef,
+} from './sessionContext'
+import { buildContextSummary } from './contextSummary'
+import type { Modality } from '@x-agent/core/observation'
+import {
   recordPanel,
   listPanels,
   listSessions,
@@ -271,7 +280,7 @@ app.get('/api/ocr/status', async () => ocrStatus())
  * Content-Type: application/octet-stream
  * Query: filename=sample-01.png（可选，用于旁车 .ocr.txt）
  */
-app.post<{ Querystring: { filename?: string } }>('/api/ocr', async (req, reply) => {
+app.post<{ Querystring: { filename?: string; sessionId?: string } }>('/api/ocr', async (req, reply) => {
   const body = req.body as unknown
   if (!(body instanceof Uint8Array) || body.byteLength === 0) {
     return reply
@@ -285,11 +294,11 @@ app.post<{ Querystring: { filename?: string } }>('/api/ocr', async (req, reply) 
   if (!ocr.ok) {
     return { ok: false, reason: ocr.reason ?? 'ocr_failed', observation: ocr.observation }
   }
-  return finishOcrPipeline(ocr.text, ocr.observation)
+  return finishOcrPipeline(ocr.text, ocr.observation, req.query.sessionId ?? 'default')
 })
 
 /** POST /api/ocr/text —— 已有 OCR 文本（评测 / 旁车） */
-app.post<{ Body: { text?: string } }>('/api/ocr/text', async (req, reply) => {
+app.post<{ Body: { text?: string; sessionId?: string } }>('/api/ocr/text', async (req, reply) => {
   const text = req.body?.text?.trim()
   if (!text) return reply.code(400).send({ error: 'text 必填' })
   const observation = {
@@ -300,46 +309,126 @@ app.post<{ Body: { text?: string } }>('/api/ocr/text', async (req, reply) => {
     confidence: 1,
     recognizer: 'passthrough',
   }
-  return finishOcrPipeline(text, observation)
+  return finishOcrPipeline(text, observation, req.body?.sessionId ?? 'default')
 })
 
-async function finishOcrPipeline(text: string, observation: import('@x-agent/core/observation').Observation) {
-  const fields = parseWechatOrderText(text)
-  const utterance = wechatOrderToUtterance(fields)
-  const aliasSuggestions = await recordOcrAliasCandidates(prisma, text, fields)
+async function runInterpretPipeline(
+  utteranceRaw: string,
+  opts: { sessionId?: string; modality?: Modality; today?: string } = {}
+) {
+  const sessionId = opts.sessionId ?? 'default'
+  const modality: Modality = opts.modality ?? 'text'
+  const focus = await getSensoryFocus(prisma, sessionId)
 
   const [customers, products] = await Promise.all([
     prisma.customer.findMany({ select: { id: true, name: true, code: true } }),
     prisma.product.findMany({ select: { id: true, model: true, name: true } }),
   ])
 
+  const norm = normalizeAsrText(utteranceRaw, { products, customers })
+  const utterance = norm.text
+
+  const slotInject: Record<string, string> = {}
+  const injectCustomer = customerInjectFromFocus(utterance, focus)
+  if (injectCustomer) slotInject.customer = injectCustomer
+
+  const today = opts.today ? new Date(opts.today) : new Date()
+  const result = await interpret(utterance, {
+    tools,
+    schemas: rawSchemas,
+    ctx: { db: prisma, today },
+    dict: { customers, products },
+    llm: runtime.settings,
+    today,
+    slotInject: Object.keys(slotInject).length ? slotInject : undefined,
+  })
+
+  const schemaDef = rawSchemas.get(result.verb)
+  let slots = await hydrateInference(result.slots, schemaDef, { db: prisma })
+  slots = await applyListPriceFallback(slots, schemaDef, { db: prisma })
+
+  updateSensoryFocusFromSlots(sessionId, modality, slots, utteranceRaw)
+  const contextSummary = await buildContextSummary(prisma, slots)
+
+  const tool = tools.get(result.verb)!
+  const ambiguous = slots.filter((s) => s.candidates?.length)
+  const missing = slots
+    .filter((s) => s.value === null && tool.parameters.required.includes(s.slot))
+    .map((s) => s.slot)
+
+  let question: string | undefined
+  if (ambiguous.length) {
+    const a = ambiguous[0]
+    question = `「${a.raw}」匹配到多个${a.title}，请选择一个：`
+  } else if (missing.length) {
+    const names = missing.map((m) => slots.find((s) => s.slot === m)?.title ?? m).join('、')
+    question = `还需要：${names}`
+  } else if (result.verbConfidence < 0.75 && result.risk === 'read') {
+    question = `这个我不太确定（把握 ${Math.round(result.verbConfidence * 100)}%，判为「${result.verb}」）—— 可以换个说法，也可以直接确认执行。`
+  }
+
+  if (injectCustomer) {
+    const cust = slots.find((s) => s.slot === 'customer')
+    if (cust?.value) {
+      setSensoryFocus(sessionId, {
+        modality,
+        customerId: String(cust.value),
+        customerLabel: cust.label ?? injectCustomer,
+        correlationId: `CUS:${cust.value}`,
+        at: new Date().toISOString(),
+        sourceUtterance: utteranceRaw,
+      })
+    }
+  }
+
+  return {
+    utterance,
+    ...(norm.changed
+      ? { utteranceRaw, asrNormalized: true, asrReplacements: norm.replacements }
+      : { asrNormalized: false }),
+    ...result,
+    slots,
+    missing,
+    ...(question ? { question } : {}),
+    ready: missing.length === 0 && ambiguous.length === 0,
+    contextSummary,
+    contextApplied: injectCustomer
+      ? { kind: 'sensory_ref', customer: injectCustomer }
+      : undefined,
+    sensoryFocus: focus
+      ? {
+          customerLabel: focus.customerLabel,
+          correlationId: focus.correlationId,
+          modality: focus.modality,
+        }
+      : null,
+  }
+}
+
+async function finishOcrPipeline(
+  text: string,
+  observation: import('@x-agent/core/observation').Observation,
+  sessionId = 'default'
+) {
+  const fields = parseWechatOrderText(text)
+  const utterance = wechatOrderToUtterance(fields)
+  const aliasSuggestions = await recordOcrAliasCandidates(prisma, text, fields)
+
   let interpretResult = null
   if (utterance) {
-    const norm = normalizeAsrText(utterance, { products, customers })
-    const u = norm.text
-    const result = await interpret(u, {
-      tools,
-      schemas: rawSchemas,
-      ctx: { db: prisma, today: new Date() },
-      dict: { customers, products },
-      llm: runtime.settings,
-      today: new Date(),
+    interpretResult = await runInterpretPipeline(utterance, { sessionId, modality: 'image' })
+  }
+
+  const cust = interpretResult?.slots?.find((s: { slot: string }) => s.slot === 'customer')
+  if (cust?.value) {
+    setSensoryFocus(sessionId, {
+      modality: 'image',
+      customerId: String(cust.value),
+      customerLabel: cust.label ?? String(cust.raw ?? cust.value),
+      correlationId: `CUS:${cust.value}`,
+      at: new Date().toISOString(),
+      sourceUtterance: utterance,
     })
-    const schemaDef = rawSchemas.get(result.verb)
-    let slots = await hydrateInference(result.slots, schemaDef, { db: prisma })
-    slots = await applyListPriceFallback(slots, schemaDef, { db: prisma })
-    const tool = tools.get(result.verb)!
-    const ambiguous = slots.filter((s) => s.candidates?.length)
-    const missing = slots
-      .filter((s) => s.value === null && tool.parameters.required.includes(s.slot))
-      .map((s) => s.slot)
-    interpretResult = {
-      utterance: u,
-      ...result,
-      slots,
-      missing,
-      ready: missing.length === 0 && ambiguous.length === 0,
-    }
   }
 
   return {
@@ -350,6 +439,7 @@ async function finishOcrPipeline(text: string, observation: import('@x-agent/cor
     utterance,
     aliasSuggestions,
     interpret: interpretResult,
+    correlationId: cust?.value ? `CUS:${cust.value}` : null,
   }
 }
 
@@ -637,77 +727,20 @@ app.get<{ Params: { kind: string } }>('/api/entities/:kind', async (req, reply) 
 
 // ---------------------------------------------------------------- 核心：一句话 → 意图 + 槽位
 
-app.post<{ Body: { utterance?: string; today?: string } }>(
-  '/api/interpret',
-  async (req, reply) => {
-    const utteranceRaw = req.body?.utterance?.trim()
-    if (!utteranceRaw) {
-      return reply.code(400).send({ error: 'utterance 不能为空' })
-    }
-
-    // 主数据词典：模型抽完之后同样要用它做实体链接校正
-    const [customers, products] = await Promise.all([
-      prisma.customer.findMany({ select: { id: true, name: true, code: true } }),
-      prisma.product.findMany({ select: { id: true, model: true, name: true } }),
-    ])
-
-    // ASR 文本规整（决策 #16）：落在 interpret 入口，不进 asr.ts ——
-    // 浏览器引擎听歪的型号同样要救。规整后的文本才进意图/槽位。
-    const norm = normalizeAsrText(utteranceRaw, { products, customers })
-    const utterance = norm.text
-
-    const result = await interpret(utterance, {
-      tools,
-      schemas: rawSchemas,
-      ctx: {
-        db: prisma,
-        today: req.body?.today ? new Date(req.body.today) : new Date(),
-      },
-      dict: { customers, products },
-      llm: runtime.settings,
-      today: req.body?.today ? new Date(req.body.today) : new Date(),
-    })
-
-    // 客户确定后，才能推断仓库与单价（串行两步）
-    const schemaDef = rawSchemas.get(result.verb)
-    let slots = await hydrateInference(result.slots, schemaDef, { db: prisma })
-    slots = await applyListPriceFallback(slots, schemaDef, { db: prisma })
-
-    // 重新判定 ready / missing
-    const tool = tools.get(result.verb)!
-    const ambiguous = slots.filter((s) => s.candidates?.length)
-    const missing = slots
-      .filter((s) => s.value === null && tool.parameters.required.includes(s.slot))
-      .map((s) => s.slot)
-
-    let question: string | undefined
-    if (ambiguous.length) {
-      const a = ambiguous[0]
-      question = `「${a.raw}」匹配到多个${a.title}，请选择一个：`
-    } else if (missing.length) {
-      const names = missing
-        .map((m) => slots.find((s) => s.slot === m)?.title ?? m)
-        .join('、')
-      question = `还需要：${names}`
-    } else if (result.verbConfidence < 0.75 && result.risk === 'read') {
-      // D11：低置信只读 —— 宁可承认不确定，也不要自信地答非所问（G2：
-      // 断网档曾把「杠笔多少钱」当订单查询执行并报出合计金额）
-      question = `这个我不太确定（把握 ${Math.round(result.verbConfidence * 100)}%，判为「${result.verb}」）—— 可以换个说法，也可以直接确认执行。`
-    }
-
-    return {
-      utterance,
-      ...(norm.changed
-        ? { utteranceRaw, asrNormalized: true, asrReplacements: norm.replacements }
-        : { asrNormalized: false }),
-      ...result,
-      slots,
-      missing,
-      ...(question ? { question } : {}),
-      ready: missing.length === 0 && ambiguous.length === 0,
-    }
+app.post<{
+  Body: { utterance?: string; today?: string; sessionId?: string; modality?: Modality }
+}>('/api/interpret', async (req, reply) => {
+  const utteranceRaw = req.body?.utterance?.trim()
+  if (!utteranceRaw) {
+    return reply.code(400).send({ error: 'utterance 不能为空' })
   }
-)
+
+  return runInterpretPipeline(utteranceRaw, {
+    sessionId: req.body?.sessionId,
+    modality: req.body?.modality ?? 'text',
+    today: req.body?.today,
+  })
+})
 
 // ---------------------------------------------------------------- 执行动词
 

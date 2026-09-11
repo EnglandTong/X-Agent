@@ -493,6 +493,8 @@ export interface InterpretOptions {
   llm?: LlmSettings | null
   /** 「今天」——相对时间解析的基准 */
   today?: Date
+  /** G3：感官焦点注入（如「就按上一张图」→ 客户） */
+  slotInject?: Record<string, string>
 }
 
 const EMPTY_DICT: ExtractDict = { customers: [], products: [] }
@@ -501,7 +503,7 @@ export async function interpret(
   utterance: string,
   opts: InterpretOptions
 ): Promise<Interpretation> {
-  const { tools, schemas, ctx, dict = EMPTY_DICT, llm = null, today } = opts
+  const { tools, schemas, ctx, dict = EMPTY_DICT, llm = null, today, slotInject } = opts
   const available = [...tools.keys()]
 
   // --- 0. 个人用语表：动词前置闸门（插入点 A）
@@ -528,7 +530,12 @@ export async function interpret(
 
   // --- 2. 槽位抽取：模型优先，规则兜底
   const ruleSlots = extractSlotsRules(utterance, dict)
-  let rawSlots = ruleSlots
+  let rawSlots = { ...ruleSlots }
+  if (slotInject) {
+    for (const [k, v] of Object.entries(slotInject)) {
+      if (rawSlots[k] === undefined && v) rawSlots[k] = v
+    }
+  }
   let engine: 'rules' | 'llm' | 'pi' = verbFromLexicon ? 'rules' : 'rules'
   let llmTrace: Interpretation['llm']
 

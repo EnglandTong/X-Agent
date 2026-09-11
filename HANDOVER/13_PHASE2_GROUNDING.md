@@ -126,8 +126,8 @@ model EnterpriseAlias {
 
 | # | 任务 | 验收 |
 |---|---|---|
-| G3-1 | OCR/语音格 `correlationId` 挂当前客户 | 可说「就按上一张图」 |
-| G3-2 | interpret 前注入只读摘要（信用/库存一行） | 确认卡可见来源 |
+| G3-1 | OCR/语音格 `correlationId` 挂当前客户 | ✅ `sessionContext` + 「就按上一张图」 |
+| G3-2 | interpret 前注入只读摘要（信用/库存一行） | ✅ `contextSummary` + 确认卡展示 |
 
 ---
 
