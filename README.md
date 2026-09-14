@@ -1,5 +1,9 @@
 # X-Agent
 
+> **TL;DR** — ERP shouldn't force humans to adapt to forms; the system should understand the human.
+> Verb-driven + schema-first: forms render from JSON Schemas shared by UI and model, and the model only does *dictation*, never *understanding* — that's why small models are enough.
+> Every confirmed action lands in an immutable tile, frozen forever. Say one sentence → human confirms → recorded.
+
 **Agent-native architecture** for upgrading, adapting, and operating existing systems with AI — safely, through schema-driven verbs and human confirmation.
 
 This monorepo contains:
