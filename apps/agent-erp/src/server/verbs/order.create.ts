@@ -253,38 +253,40 @@ export const orderCreate: Verb = {
       })
       const seq = last ? Number(last.no.split('-')[2]) + 1 : 1001
 
-      order = await db.order.create({
-        data: {
-          no: `SO-${year}-${seq}`,
-          customerId,
-          warehouse,
-          status: 'DRAFT',
-          deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
-          currency,
-          totalAmount,
-          remark,
-          createdBy: actor,
-          originNo,
-          chainId,
-          items: {
-            create: itemCreates,
+      // change 模式下建单、冻结原单、释放额度三步必须原子：
+      // 中途崩溃会留下「新单已建、原单未废、额度未释放」的半写状态
+      const writeOrder = async (client: any) => {
+        const o = await client.order.create({
+          data: {
+            no: `SO-${year}-${seq}`,
+            customerId,
+            warehouse,
+            status: 'DRAFT',
+            deliveryDate: deliveryDate ? new Date(deliveryDate) : null,
+            currency,
+            totalAmount,
+            remark,
+            createdBy: actor,
+            originNo,
+            chainId,
+            items: {
+              create: itemCreates,
+            },
           },
-        },
-        include: { customer: true, items: { include: { product: true } } },
-      })
+          include: { customer: true, items: { include: { product: true } } },
+        })
 
-      if (mode === 'change' && originNo && originForChange) {
-        await db.$transaction(async (tx: any) => {
-          await tx.order.update({
+        if (mode === 'change' && originNo && originForChange) {
+          await client.order.update({
             where: { no: originNo },
-            data: { status: 'SUPERSEDED', supersededByNo: order.no },
+            data: { status: 'SUPERSEDED', supersededByNo: o.no },
           })
           if (OCCUPYING.has(originForChange!.status) && originForChange!.totalAmount > 0) {
-            const cust = await tx.customer.findUnique({
+            const cust = await client.customer.findUnique({
               where: { id: originForChange!.customerId },
             })
             if (cust) {
-              await tx.customer.update({
+              await client.customer.update({
                 where: { id: originForChange!.customerId },
                 data: {
                   creditUsed: Math.max(0, cust.creditUsed - originForChange!.totalAmount),
@@ -292,8 +294,13 @@ export const orderCreate: Verb = {
               })
             }
           }
-        })
+        }
+        return o
       }
+
+      order = mode === 'change'
+        ? await db.$transaction(writeOrder)
+        : await writeOrder(db)
     }
 
     const money = `¥${totalAmount.toLocaleString('zh-CN')}`
