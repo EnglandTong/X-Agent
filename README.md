@@ -8,10 +8,10 @@
 
 This monorepo contains:
 
-| 主 / 支 | Path | Role | Docs |
+| Primary / Satellite | Path | Role | Docs |
 |---|---|---|---|
-| **主** | [`packages/core/`](./packages/core/) | **X-Agent framework** — `@x-agent/core` | [`packages/core/*.md`](./packages/core/README.md) |
-| **支** | [`apps/agent-erp/`](./apps/agent-erp/) | **Agent_ERP** reference app (order → shipment PoC) | [`HANDOVER/`](./HANDOVER/README.md) |
+| **Primary** | [`packages/core/`](./packages/core/) | **X-Agent framework** — `@x-agent/core` | [`packages/core/*.md`](./packages/core/README.md) |
+| **Satellite** | [`apps/agent-erp/`](./apps/agent-erp/) | **Agent_ERP** reference app (order → shipment PoC) | [`HANDOVER/`](./HANDOVER/README.md) |
 
 **Governance (2026-09-11)** — same `main` branch, split by directory + docs, not by Git branch:
 
